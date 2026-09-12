@@ -46,6 +46,116 @@ struct RecoveryFoundationTests {
         ) == nil)
     }
 
+    @Test("Card identity detects a replacement at a reused BSD path")
+    func cardImagingIdentity() throws {
+        let guid = Data([1, 2, 3, 4])
+        let selected = try #require(makeStorageDevice(bsdName: "disk7", guid: guid))
+        let unchanged = try #require(makeStorageDevice(bsdName: "disk7", guid: guid))
+        let replacement = try #require(makeStorageDevice(bsdName: "disk7", guid: Data([9, 8, 7, 6])))
+
+        #expect(selected.hasSameImagingIdentity(as: unchanged))
+        #expect(!selected.hasSameImagingIdentity(as: replacement))
+    }
+
+    @Test("Card image planning rejects the source device and unsafe outputs")
+    func cardImagePlanProtection() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DataRevivalImagingPlan-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let source = try #require(makeStorageDevice(bsdName: "disk7", byteCount: 64_000))
+        let image = root.appendingPathComponent("camera card.img")
+
+        #expect(throws: CardImagingError.sourceSizeUnknown) {
+            try CardImagingPlan.prepare(
+                sourceDevice: #require(makeStorageDevice(bsdName: "disk7", byteCount: 0)),
+                imageURL: image,
+                destinationWholeDiskBSDName: "disk2",
+                availableCapacity: 128_000
+            )
+        }
+        #expect(throws: CardImagingError.sourceDestinationCollision) {
+            try CardImagingPlan.prepare(
+                sourceDevice: source,
+                imageURL: image,
+                destinationWholeDiskBSDName: "disk7",
+                availableCapacity: 128_000
+            )
+        }
+        #expect(throws: CardImagingError.insufficientSpace(required: 64_000, available: 32_000)) {
+            try CardImagingPlan.prepare(
+                sourceDevice: source,
+                imageURL: image,
+                destinationWholeDiskBSDName: "disk2",
+                availableCapacity: 32_000
+            )
+        }
+        #expect(throws: CardImagingError.destinationCapacityUnknown) {
+            try CardImagingPlan.prepare(
+                sourceDevice: source,
+                imageURL: image,
+                destinationWholeDiskBSDName: "disk2",
+                availableCapacity: nil
+            )
+        }
+
+        try Data([0]).write(to: image.appendingPathExtension("map"))
+        #expect(throws: CardImagingError.outputAlreadyExists) {
+            try CardImagingPlan.prepare(
+                sourceDevice: source,
+                imageURL: image,
+                destinationWholeDiskBSDName: "disk2",
+                availableCapacity: 128_000
+            )
+        }
+    }
+
+    @Test("GNU ddrescue receives source, image, and mapfile as separate arguments")
+    func ddrescueCommandPreservesPaths() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Recovery Drive \(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = try #require(makeStorageDevice(bsdName: "disk7", byteCount: 64_000))
+        let plan = try CardImagingPlan.prepare(
+            sourceDevice: source,
+            imageURL: root.appendingPathComponent("camera card.img"),
+            destinationWholeDiskBSDName: "disk2",
+            availableCapacity: 128_000
+        )
+        let command = DDRescueCommand.image(
+            executableURL: URL(fileURLWithPath: "/opt/homebrew/bin/ddrescue"),
+            plan: plan
+        )
+
+        #expect(command.arguments == [
+            "--verbose",
+            "/dev/rdisk7",
+            root.appendingPathComponent("camera card.img").path,
+            root.appendingPathComponent("camera card.img.map").path
+        ])
+        #expect(command.runnerLogURL.lastPathComponent == "camera card.img.ddrescue.log")
+    }
+
+    @Test("GNU ddrescue runner invokes a process without a shell")
+    func ddrescueRunnerExecutesProcess() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DataRevivalDDRescueRunner-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let command = DDRescueCommand(
+            executableURL: URL(fileURLWithPath: "/usr/bin/true"),
+            arguments: [],
+            currentDirectoryURL: root,
+            runnerLogURL: root.appendingPathComponent("ddrescue.log")
+        )
+        try await DDRescueRunner().image(command: command)
+
+        #expect(FileManager.default.fileExists(atPath: command.runnerLogURL.path))
+    }
+
     @Test("PhotoRec receives paths as separate arguments")
     func commandPreservesPathsWithSpaces() {
         let session = RecoverySession(
@@ -278,6 +388,27 @@ struct RecoveryFoundationTests {
         ))
         CGImageDestinationAddImage(destination, image, nil)
         #expect(CGImageDestinationFinalize(destination))
+    }
+
+    private func makeStorageDevice(
+        bsdName: String,
+        byteCount: Int64 = 64_000_000_000,
+        guid: Data? = Data([1, 2, 3, 4])
+    ) -> StorageDevice? {
+        var description: [String: Any] = [
+            kDADiskDescriptionMediaWholeKey as String: true,
+            kDADiskDescriptionMediaNameKey as String: "Camera Card",
+            kDADiskDescriptionDeviceModelKey as String: "Reader",
+            kDADiskDescriptionDeviceProtocolKey as String: "USB",
+            kDADiskDescriptionMediaSizeKey as String: NSNumber(value: byteCount),
+            kDADiskDescriptionDeviceInternalKey as String: false,
+            kDADiskDescriptionMediaRemovableKey as String: true,
+            kDADiskDescriptionMediaEjectableKey as String: true
+        ]
+        if let guid {
+            description[kDADiskDescriptionDeviceGUIDKey as String] = guid
+        }
+        return StorageDevice(bsdName: bsdName, description: description)
     }
 }
 

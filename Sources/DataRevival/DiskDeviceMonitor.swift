@@ -7,6 +7,7 @@ struct StorageDevice: Identifiable, Sendable, Equatable {
     let mediaName: String?
     let deviceModel: String?
     let connectionProtocol: String?
+    let deviceGUID: Data?
     let byteCount: Int64
     let isInternal: Bool
     let isRemovable: Bool
@@ -25,6 +26,27 @@ struct StorageDevice: Identifiable, Sendable, Equatable {
         !isInternal || isRemovable || isEjectable
     }
 
+    /// Device names such as `disk7` can be reused after a disconnect. Imaging
+    /// code uses this comparison immediately before opening the source so a
+    /// replacement device is not mistaken for the one the user selected.
+    func hasSameImagingIdentity(as other: StorageDevice) -> Bool {
+        guard bsdName == other.bsdName,
+              byteCount == other.byteCount,
+              deviceModel == other.deviceModel,
+              connectionProtocol == other.connectionProtocol else {
+            return false
+        }
+
+        switch (deviceGUID, other.deviceGUID) {
+        case let (.some(lhs), .some(rhs)):
+            return lhs == rhs
+        case (.none, .none):
+            return true
+        case (.some, .none), (.none, .some):
+            return false
+        }
+    }
+
     init?(
         bsdName: String,
         description: [String: Any]
@@ -35,6 +57,7 @@ struct StorageDevice: Identifiable, Sendable, Equatable {
         mediaName = description[Self.mediaNameKey] as? String
         deviceModel = description[Self.deviceModelKey] as? String
         connectionProtocol = description[Self.deviceProtocolKey] as? String
+        deviceGUID = description[Self.deviceGUIDKey] as? Data
         byteCount = (description[Self.mediaSizeKey] as? NSNumber)?.int64Value ?? 0
         isInternal = description[Self.deviceInternalKey] as? Bool ?? true
         isRemovable = description[Self.mediaRemovableKey] as? Bool ?? false
@@ -55,8 +78,43 @@ struct StorageDevice: Identifiable, Sendable, Equatable {
     private static let mediaRemovableKey = kDADiskDescriptionMediaRemovableKey as String
     private static let mediaEjectableKey = kDADiskDescriptionMediaEjectableKey as String
     private static let deviceInternalKey = kDADiskDescriptionDeviceInternalKey as String
+    private static let deviceGUIDKey = kDADiskDescriptionDeviceGUIDKey as String
     private static let deviceModelKey = kDADiskDescriptionDeviceModelKey as String
     private static let deviceProtocolKey = kDADiskDescriptionDeviceProtocolKey as String
+}
+
+enum DiskIdentityResolver {
+    static func currentDevice(
+        bsdName: String,
+        session: DASession? = DASessionCreate(kCFAllocatorDefault)
+    ) -> StorageDevice? {
+        guard let session,
+              let disk = bsdName.withCString({
+                  DADiskCreateFromBSDName(kCFAllocatorDefault, session, $0)
+              }) else {
+            return nil
+        }
+        return StorageDevice(disk: disk)
+    }
+
+    static func wholeDiskBSDName(
+        containing url: URL,
+        session: DASession? = DASessionCreate(kCFAllocatorDefault)
+    ) throws -> String? {
+        guard let session else { return nil }
+        let values = try url.resourceValues(forKeys: [.volumeURLForRemountingKey])
+        let volumeURL = values.volumeURLForRemounting ?? url
+        guard let volumeDisk = DADiskCreateFromVolumePath(
+            kCFAllocatorDefault,
+            session,
+            volumeURL as CFURL
+        ),
+        let wholeDisk = DADiskCopyWholeDisk(volumeDisk),
+        let bsdName = DADiskGetBSDName(wholeDisk) else {
+            return nil
+        }
+        return String(cString: bsdName)
+    }
 }
 
 /// Disk Arbitration delivers callbacks on the main queue configured in `start()`.

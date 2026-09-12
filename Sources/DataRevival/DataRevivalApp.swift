@@ -61,6 +61,7 @@ private struct RecoveryView: View {
     @State private var issue: String?
     @State private var exportConfirmation: String?
     @State private var diskSelection: String?
+    @State private var preparedImagingPlan: CardImagingPlan?
 
     private var files: [SampleFile] {
         SampleFile.examples.filter {
@@ -116,6 +117,7 @@ private struct RecoveryView: View {
             } else {
                 diskDevices.stop()
                 diskSelection = nil
+                preparedImagingPlan = nil
             }
         }
         .alert("Recovery could not continue", isPresented: Binding(
@@ -386,10 +388,23 @@ private struct RecoveryView: View {
                             .foregroundStyle(.teal)
                         Text("\(device.displayName) will be opened read-only. Imaging will require an unmounted card and a destination on a different physical device.")
                             .foregroundStyle(.secondary)
-                        Button("Create card image…") {}
+                        if let plan = preparedImagingPlan, plan.sourceDevice.id == device.id {
+                            Label(
+                                "\(plan.imageURL.lastPathComponent) passed the physical-device, collision, and free-space checks.",
+                                systemImage: "checkmark.circle.fill"
+                            )
+                            .font(.callout)
+                            .foregroundStyle(.green)
+                        }
+                        HStack {
+                            Button("Check imaging destination…") {
+                                chooseCardImageDestination(for: device)
+                            }
                             .buttonStyle(.borderedProminent)
-                            .disabled(true)
-                            .help("Card imaging will be enabled after privileged access and destination-device checks are implemented.")
+                            Button("Start imaging") {}
+                                .disabled(true)
+                                .help("A narrowly scoped privileged helper and safe unmount flow are still required before raw-device imaging can start.")
+                        }
                     }
                     .padding(18)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -407,6 +422,9 @@ private struct RecoveryView: View {
         .padding(32)
         .onAppear { diskDevices.start() }
         .onDisappear { diskDevices.stop() }
+        .onChange(of: diskSelection) { _, _ in
+            preparedImagingPlan = nil
+        }
     }
 
     private var results: some View {
@@ -465,6 +483,42 @@ private struct RecoveryView: View {
             }
             imageURL = url
         } catch { issue = error.localizedDescription }
+    }
+
+    private func chooseCardImageDestination(for device: StorageDevice) {
+        let panel = NSSavePanel()
+        panel.title = "Choose card image destination"
+        panel.message = "Save the image on a different physical device. No file will be created during this safety check."
+        panel.nameFieldStringValue = "\(device.displayName).img"
+        panel.canCreateDirectories = true
+        panel.isExtensionHidden = false
+        if let imageType = UTType(filenameExtension: "img") {
+            panel.allowedContentTypes = [imageType]
+        }
+        guard panel.runModal() == .OK, let imageURL = panel.url else { return }
+
+        do {
+            let destinationDirectory = imageURL.deletingLastPathComponent()
+            let destinationDisk = try DiskIdentityResolver.wholeDiskBSDName(
+                containing: destinationDirectory
+            )
+            let capacity = try destinationDirectory.resourceValues(
+                forKeys: [.volumeAvailableCapacityForImportantUsageKey]
+            ).volumeAvailableCapacityForImportantUsage
+            let plan = try CardImagingPlan.prepare(
+                sourceDevice: device,
+                imageURL: imageURL,
+                destinationWholeDiskBSDName: destinationDisk,
+                availableCapacity: capacity
+            )
+            try plan.validateCurrentSource(
+                DiskIdentityResolver.currentDevice(bsdName: device.bsdName)
+            )
+            preparedImagingPlan = plan
+        } catch {
+            preparedImagingPlan = nil
+            issue = error.localizedDescription
+        }
     }
 
     private func chooseDestinationAndScan() {
