@@ -19,6 +19,20 @@ if [[ ! -x "$main_executable" ]]; then
 fi
 
 app_architectures="$(lipo -archs "$main_executable")"
+if [[ "$app_architectures" != "arm64" ]]; then
+    echo "error: the 1.0 app must be arm64-only, found: $app_architectures" >&2
+    exit 1
+fi
+
+audit_architecture() {
+    local binary="$1"
+    local architectures
+    architectures="$(lipo -archs "$binary")"
+    if [[ "$architectures" != "arm64" ]]; then
+        echo "error: bundled native code must be arm64-only: $binary ($architectures)" >&2
+        exit 1
+    fi
+}
 
 audit_dependencies() {
     local binary="$1"
@@ -60,20 +74,14 @@ for tool in "${required_tools[@]}"; do
         exit 1
     fi
 
-    tool_architectures="$(lipo -archs "$binary")"
-    for architecture in $app_architectures; do
-        if [[ " $tool_architectures " != *" $architecture "* ]]; then
-            echo "error: $tool does not contain the app architecture $architecture" >&2
-            exit 1
-        fi
-    done
-
+    audit_architecture "$binary"
     audit_dependencies "$binary"
     codesign --verify --strict --verbose=2 "$binary"
 done
 
 while IFS= read -r candidate; do
     if [[ "$(file "$candidate")" == *Mach-O* ]]; then
+        audit_architecture "$candidate"
         audit_dependencies "$candidate"
         codesign --verify --strict --verbose=2 "$candidate"
     fi

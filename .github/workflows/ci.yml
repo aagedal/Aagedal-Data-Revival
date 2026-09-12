@@ -32,3 +32,9 @@ jobs:
           -derivedDataPath "$RUNNER_TEMP/DataRevivalDerived"
           CODE_SIGNING_ALLOWED=NO
           build
+
+      - name: Verify arm64-only application
+        run: >-
+          lipo -archs
+          "$RUNNER_TEMP/DataRevivalDerived/Build/Products/Release/Aagedal Data Revival.app/Contents/MacOS/Aagedal Data Revival"
+          | grep -Fx arm64

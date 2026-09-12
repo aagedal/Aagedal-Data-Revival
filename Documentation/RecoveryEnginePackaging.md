@@ -3,6 +3,8 @@
 The release app must not discover or launch recovery engines from Homebrew,
 MacPorts, `/usr/local`, or another machine-specific installation. Debug builds
 may use those locations to keep development convenient; release builds do not.
+Version 1.0 targets Apple silicon only: the app, both recovery engines, and all
+bundled native libraries must contain exactly the arm64 architecture.
 
 ## Required bundle layout
 
@@ -36,8 +38,8 @@ After creating and signing an archive, run:
 Scripts/audit-app-bundle.sh "/path/to/Aagedal Data Revival.app"
 ```
 
-The audit fails when a required engine is absent, is not executable, lacks one
-of the app's architectures, is not signed, or links to an absolute dependency
+The audit fails when the app or bundled native code is not arm64-only, a
+required engine is absent, is not executable, is not signed, or links to an absolute dependency
 outside macOS system locations. It also rejects external `LC_RPATH` entries and
 verifies the outer app's nested signature.
 
