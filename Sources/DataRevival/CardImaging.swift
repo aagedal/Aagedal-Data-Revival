@@ -297,6 +297,8 @@ struct DDRescueCommand: Sendable, Equatable {
     let runnerLogURL: URL
     let resumeRecordURL: URL?
     let resumeRecord: CardImagingResumeRecord?
+    let mapURL: URL?
+    let sourceByteCount: Int64?
 
     init(
         executableURL: URL,
@@ -304,7 +306,9 @@ struct DDRescueCommand: Sendable, Equatable {
         currentDirectoryURL: URL,
         runnerLogURL: URL,
         resumeRecordURL: URL? = nil,
-        resumeRecord: CardImagingResumeRecord? = nil
+        resumeRecord: CardImagingResumeRecord? = nil,
+        mapURL: URL? = nil,
+        sourceByteCount: Int64? = nil
     ) {
         self.executableURL = executableURL
         self.arguments = arguments
@@ -312,6 +316,8 @@ struct DDRescueCommand: Sendable, Equatable {
         self.runnerLogURL = runnerLogURL
         self.resumeRecordURL = resumeRecordURL
         self.resumeRecord = resumeRecord
+        self.mapURL = mapURL
+        self.sourceByteCount = sourceByteCount
     }
 
     static func image(executableURL: URL, plan: CardImagingPlan) -> DDRescueCommand {
@@ -326,7 +332,9 @@ struct DDRescueCommand: Sendable, Equatable {
             currentDirectoryURL: plan.imageURL.deletingLastPathComponent(),
             runnerLogURL: plan.runnerLogURL,
             resumeRecordURL: plan.resumeRecordURL,
-            resumeRecord: plan.resumeRecord
+            resumeRecord: plan.resumeRecord,
+            mapURL: plan.mapURL,
+            sourceByteCount: plan.sourceDevice.byteCount
         )
     }
 }
@@ -361,7 +369,10 @@ final class DDRescueRunner: @unchecked Sendable {
     private let lock = NSLock()
     private var activeProcess: Process?
 
-    func image(command: DDRescueCommand) async throws {
+    func image(
+        command: DDRescueCommand,
+        onProgress: (@Sendable (DDRescueMapSnapshot) async -> Void)? = nil
+    ) async throws {
         let process = Process()
         process.executableURL = command.executableURL
         process.arguments = command.arguments
@@ -390,6 +401,25 @@ final class DDRescueRunner: @unchecked Sendable {
             try? logHandle.close()
         }
 
+        if let snapshot = progressSnapshot(for: command), let onProgress {
+            await onProgress(snapshot)
+        }
+
+        let progressTask = Task {
+            guard let onProgress else { return }
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .seconds(1))
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled,
+                      let snapshot = progressSnapshot(for: command) else { continue }
+                await onProgress(snapshot)
+            }
+        }
+        defer { progressTask.cancel() }
+
         let status = try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 process.terminationHandler = { finishedProcess in
@@ -408,6 +438,9 @@ final class DDRescueRunner: @unchecked Sendable {
 
         try Task.checkCancellation()
         guard status == 0 else { throw RunnerError.unsuccessfulExit(status) }
+        if let snapshot = progressSnapshot(for: command), let onProgress {
+            await onProgress(snapshot)
+        }
     }
 
     func cancel() {
@@ -440,5 +473,15 @@ final class DDRescueRunner: @unchecked Sendable {
         } catch {
             throw RunnerError.failedToSaveResumeMetadata
         }
+    }
+
+    private func progressSnapshot(for command: DDRescueCommand) -> DDRescueMapSnapshot? {
+        guard let mapURL = command.mapURL,
+              let sourceByteCount = command.sourceByteCount,
+              sourceByteCount > 0,
+              let data = try? Data(contentsOf: mapURL) else {
+            return nil
+        }
+        return try? DDRescueMapfile.parse(data, expectedByteCount: sourceByteCount)
     }
 }

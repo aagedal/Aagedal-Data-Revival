@@ -1,5 +1,40 @@
 import Foundation
 
+struct RecoverySourceIdentity: Codable, Sendable, Equatable {
+    let byteCount: Int64
+    let fileIdentifier: UInt64?
+    let volumeIdentifier: UInt64?
+    let modificationDate: Date?
+
+    static func capture(
+        at url: URL,
+        fileManager: FileManager = .default
+    ) throws -> RecoverySourceIdentity {
+        let attributes = try fileManager.attributesOfItem(atPath: url.path)
+        let byteCount = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+        return RecoverySourceIdentity(
+            byteCount: byteCount,
+            fileIdentifier: (attributes[.systemFileNumber] as? NSNumber)?.uint64Value,
+            volumeIdentifier: (attributes[.systemNumber] as? NSNumber)?.uint64Value,
+            modificationDate: attributes[.modificationDate] as? Date
+        )
+    }
+}
+
+struct RecoveryEngineProvenance: Codable, Sendable, Equatable {
+    enum Origin: String, Codable, Sendable {
+        case appBundle
+        case developmentInstall
+    }
+
+    let name: String
+    let versionDescription: String?
+    let executableSHA256: String?
+    let processArchitecture: String
+    let origin: Origin
+    let arguments: [String]
+}
+
 enum RecoveryScanProfile: String, Codable, CaseIterable, Identifiable, Sendable {
     case jpeg
     case photos
@@ -61,6 +96,8 @@ struct RecoverySession: Codable, Identifiable, Sendable, Equatable {
     var recoveredFiles: [RecoveredFile]
     var failureMessage: String?
     var scanProfile: RecoveryScanProfile? = nil
+    var sourceIdentity: RecoverySourceIdentity? = nil
+    var engineProvenance: RecoveryEngineProvenance? = nil
 
     var sourceImageURL: URL { URL(fileURLWithPath: sourceImagePath) }
     var sessionDirectoryURL: URL { URL(fileURLWithPath: sessionDirectoryPath) }

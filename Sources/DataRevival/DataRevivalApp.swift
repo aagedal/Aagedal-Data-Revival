@@ -38,12 +38,11 @@ private struct SampleFile: Identifiable {
     let kind: String
     let size: String
     let status: String
-    var symbol: String { kind == "Video" ? "film" : "photo" }
+    var symbol: String { kind == "RAW" ? "camera.aperture" : "photo" }
     static let examples: [SampleFile] = [
         .init(id: 1, name: "Recovered_0001.JPG", kind: "JPEG", size: "12.4 MB", status: "Preview available"),
         .init(id: 2, name: "Recovered_0002.CR3", kind: "RAW", size: "28.6 MB", status: "Needs validation"),
-        .init(id: 3, name: "Recovered_0003.JPG", kind: "JPEG", size: "10.8 MB", status: "Preview available"),
-        .init(id: 4, name: "Recovered_0004.MP4", kind: "Video", size: "482 MB", status: "Possibly partial")
+        .init(id: 3, name: "Recovered_0003.JPG", kind: "JPEG", size: "10.8 MB", status: "Preview available")
     ]
 }
 
@@ -87,6 +86,7 @@ private struct RecoveryView: View {
     @State private var exportConfirmation: String?
     @State private var diskSelection: String?
     @State private var preparedImagingPlan: CardImagingPlan?
+    @State private var sessionPendingRemoval: RecoverySession?
 
     private var files: [SampleFile] {
         SampleFile.examples.filter {
@@ -174,6 +174,20 @@ private struct RecoveryView: View {
         } message: {
             Text(exportConfirmation ?? "The selected files were exported.")
         }
+        .alert("Move recovery session to Trash?", isPresented: Binding(
+            get: { sessionPendingRemoval != nil },
+            set: { if !$0 { sessionPendingRemoval = nil } }
+        )) {
+            Button("Cancel", role: .cancel) { sessionPendingRemoval = nil }
+            Button("Move to Trash", role: .destructive) {
+                if let session = sessionPendingRemoval {
+                    recovery.moveSessionToTrash(id: session.id)
+                }
+                sessionPendingRemoval = nil
+            }
+        } message: {
+            Text("Recovered output, logs, and the manifest in this session folder will be moved to the Trash. The source disk image will remain untouched.")
+        }
     }
 
     private var recoveryContent: some View {
@@ -224,7 +238,7 @@ private struct RecoveryView: View {
             VStack(alignment: .leading, spacing: 26) {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Bring your work back.").font(.system(size: 34, weight: .semibold))
-                    Text("A calmer way to recover photos and footage from a formatted camera card.")
+                    Text("A calmer way to recover photos from a formatted camera card.")
                         .font(.title3).foregroundStyle(.secondary)
                 }.padding(.top, 22)
                 HStack(alignment: .top, spacing: 18) {
@@ -279,7 +293,7 @@ private struct RecoveryView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 5) {
                         Text("Take a look around").font(.headline)
-                        Text("Explore the review screen using four sample files.").foregroundStyle(.secondary)
+                        Text("Explore the review screen using three sample files.").foregroundStyle(.secondary)
                     }
                     Spacer()
                     Button("Explore sample results") { showingDemo = true }
@@ -418,6 +432,15 @@ private struct RecoveryView: View {
                     }
                     .padding(.vertical, 6)
                     .tag(session.id)
+                    .contextMenu {
+                        Button("Show in Finder", systemImage: "folder") {
+                            NSWorkspace.shared.activateFileViewerSelecting([session.sessionDirectoryURL])
+                        }
+                        Divider()
+                        Button("Move to Trash", systemImage: "trash", role: .destructive) {
+                            sessionPendingRemoval = session
+                        }
+                    }
                 }
                 .onChange(of: sessionSelection) { _, id in
                     guard let id else { return }
@@ -671,7 +694,12 @@ private struct RecoveryView: View {
 
         let panel = NSOpenPanel()
         panel.title = "Choose recovery destination"
-        panel.message = "Choose a folder with enough free space. Data Revival will create a new isolated session folder here."
+        let sourceSize = (try? imageURL.resourceValues(forKeys: [.fileSizeKey]).fileSize)
+            .map(Int64.init) ?? 0
+        let outputEstimate = RecoveryStorageEstimate(sourceByteCount: sourceSize)
+            .recoveredOutputByteCount
+            .formatted(.byteCount(style: .file))
+        panel.message = "Choose a folder with at least \(outputEstimate) available for recovered output. Data Revival will create a new isolated session folder here."
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.canCreateDirectories = true
@@ -682,7 +710,7 @@ private struct RecoveryView: View {
         recovery.startScan(
             sourceImage: imageURL,
             destinationRoot: destination,
-            executableURL: installation.executableURL,
+            installation: installation,
             profile: scanProfile
         )
     }
@@ -781,7 +809,10 @@ private struct RecoveryView: View {
     private func imagingPlanSummary(_ plan: CardImagingPlan) -> String {
         switch plan.mode {
         case .create:
-            return "\(plan.imageURL.lastPathComponent) passed the physical-device, collision, and free-space checks."
+            let total = RecoveryStorageEstimate(sourceByteCount: plan.sourceDevice.byteCount)
+                .completeWorkflowByteCount
+                .formatted(.byteCount(style: .file))
+            return "\(plan.imageURL.lastPathComponent) passed the image checks. Plan up to \(total) across the card image and recovered output."
         case .resume:
             if let snapshot = plan.mapSnapshot {
                 let rescued = snapshot.rescuedByteCount.formatted(.byteCount(style: .file))

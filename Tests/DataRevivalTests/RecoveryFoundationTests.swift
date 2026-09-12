@@ -90,6 +90,36 @@ struct RecoveryFoundationTests {
         #expect(installation == nil)
     }
 
+    @Test("Recovery engine provenance records version, digest, architecture, and arguments")
+    func recoveryEngineProvenance() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DataRevivalProvenance-\(UUID().uuidString)", isDirectory: true)
+        let executable = root.appendingPathComponent("photorec")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try Data("#!/bin/sh\necho 'PhotoRec 7.2, Data Recovery Utility'\n".utf8).write(to: executable)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: NSNumber(value: Int16(0o755))],
+            ofItemAtPath: executable.path
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let provenance = await RecoveryToolInspector.provenance(
+            for: RecoveryToolInstallation(
+                tool: .photoRec,
+                executableURL: executable,
+                origin: .developmentInstall
+            ),
+            arguments: ["/cmd", "/tmp/card.dd", "fileopt,everything,disable"]
+        )
+
+        #expect(provenance.name == "photorec")
+        #expect(provenance.versionDescription == "PhotoRec 7.2, Data Recovery Utility")
+        #expect(provenance.executableSHA256?.count == 64)
+        #expect(["arm64", "x86_64"].contains(provenance.processArchitecture))
+        #expect(provenance.origin == .developmentInstall)
+        #expect(provenance.arguments.first == "/cmd")
+    }
+
     @Test("Disk discovery keeps only whole recovery-source devices")
     func storageDeviceFiltering() throws {
         let external = try #require(StorageDevice(
@@ -126,6 +156,25 @@ struct RecoveryFoundationTests {
             bsdName: "disk7s1",
             description: [kDADiskDescriptionMediaWholeKey as String: false]
         ) == nil)
+    }
+
+    @Test("Recovery storage planning reserves output space up to the source size")
+    func recoveryStoragePlanning() throws {
+        let estimate = RecoveryStorageEstimate(sourceByteCount: 64_000)
+        #expect(estimate.cardImageByteCount == 64_000)
+        #expect(estimate.recoveredOutputByteCount == 64_000)
+        #expect(estimate.completeWorkflowByteCount == 128_000)
+
+        try estimate.validateRecoveryOutputCapacity(64_000)
+        #expect(throws: RecoveryStorageError.insufficientRecoverySpace(
+            required: 64_000,
+            available: 63_999
+        )) {
+            try estimate.validateRecoveryOutputCapacity(63_999)
+        }
+        #expect(throws: RecoveryStorageError.destinationCapacityUnknown) {
+            try estimate.validateRecoveryOutputCapacity(nil)
+        }
     }
 
     @Test("Card identity detects a replacement at a reused BSD path")
@@ -218,6 +267,8 @@ struct RecoveryFoundationTests {
             root.appendingPathComponent("camera card.img.map").path
         ])
         #expect(command.runnerLogURL.lastPathComponent == "camera card.img.ddrescue.log")
+        #expect(command.mapURL == plan.mapURL)
+        #expect(command.sourceByteCount == source.byteCount)
     }
 
     @Test("GNU ddrescue runner invokes a process without a shell")
@@ -236,6 +287,34 @@ struct RecoveryFoundationTests {
         try await DDRescueRunner().image(command: command)
 
         #expect(FileManager.default.fileExists(atPath: command.runnerLogURL.path))
+    }
+
+    @Test("GNU ddrescue runner publishes valid mapfile progress")
+    func ddrescueRunnerProgress() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DataRevivalDDRescueProgress-\(UUID().uuidString)", isDirectory: true)
+        let mapURL = root.appendingPathComponent("camera.img.map")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try Data(interruptedMapfile(byteCount: 64_000).utf8).write(to: mapURL)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let recorder = DDRescueProgressRecorder()
+        let command = DDRescueCommand(
+            executableURL: URL(fileURLWithPath: "/usr/bin/true"),
+            arguments: [],
+            currentDirectoryURL: root,
+            runnerLogURL: root.appendingPathComponent("ddrescue.log"),
+            mapURL: mapURL,
+            sourceByteCount: 64_000
+        )
+        try await DDRescueRunner().image(command: command) { snapshot in
+            await recorder.append(snapshot)
+        }
+
+        let snapshots = await recorder.snapshots
+        #expect(!snapshots.isEmpty)
+        #expect(snapshots.last?.totalByteCount == 64_000)
+        #expect(snapshots.last?.rescuedByteCount == 16_000)
     }
 
     @Test("Card imaging writes source-bound metadata before invoking ddrescue")
@@ -496,6 +575,8 @@ struct RecoveryFoundationTests {
 
         #expect(decoded.scanProfile == nil)
         #expect(decoded.effectiveScanProfile == .jpeg)
+        #expect(decoded.sourceIdentity == nil)
+        #expect(decoded.engineProvenance == nil)
     }
 
     @Test("Sessions are written to their folder and catalog")
@@ -521,8 +602,37 @@ struct RecoveryFoundationTests {
         #expect(reloaded.first?.id == session.id)
         #expect(reloaded.first?.status == .completed)
         #expect(reloaded.first?.scanProfile == .photos)
+        #expect(reloaded.first?.sourceIdentity?.byteCount == 4)
+        #expect(reloaded.first?.sourceIdentity?.fileIdentifier != nil)
         #expect(abs((reloaded.first?.updatedAt.timeIntervalSince1970 ?? 0) - session.updatedAt.timeIntervalSince1970) < 1)
         #expect(FileManager.default.fileExists(atPath: session.manifestURL.path))
+    }
+
+    @Test("Session cleanup verifies and discards its managed folder and catalog entry")
+    func sessionCleanup() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DataRevivalCleanup-\(UUID().uuidString)", isDirectory: true)
+        let source = root.appendingPathComponent("camera.dd")
+        let destination = root.appendingPathComponent("output", isDirectory: true)
+        let catalog = root.appendingPathComponent("catalog", isDirectory: true)
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+        try Data([0x00]).write(to: source)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let store = RecoverySessionStore(
+            catalogDirectory: catalog,
+            trashItem: { url in
+                try FileManager.default.removeItem(at: url)
+                return nil
+            }
+        )
+        let session = try await store.createSession(sourceImage: source, destinationRoot: destination)
+        #expect(FileManager.default.fileExists(atPath: session.sessionDirectoryURL.path))
+
+        try await store.moveSessionToTrash(id: session.id)
+
+        #expect(!FileManager.default.fileExists(atPath: session.sessionDirectoryURL.path))
+        #expect(try await store.loadAll().isEmpty)
     }
 
     @Test("Interrupted scans retain partial files and become reopenable")
@@ -791,6 +901,14 @@ struct RecoveryFoundationTests {
             description[kDADiskDescriptionDeviceGUIDKey as String] = guid
         }
         return StorageDevice(bsdName: bsdName, description: description)
+    }
+}
+
+private actor DDRescueProgressRecorder {
+    private(set) var snapshots: [DDRescueMapSnapshot] = []
+
+    func append(_ snapshot: DDRescueMapSnapshot) {
+        snapshots.append(snapshot)
     }
 }
 

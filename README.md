@@ -2,13 +2,13 @@
 
 A proposed open-source, native macOS app for recovering files from accidentally formatted camera cards.
 
-Status: runnable SwiftUI prototype with experimental PhotoRec-backed JPEG and common camera RAW scans for raw disk images. Physical-card discovery plus new-image and resume safety planning are available; privileged card imaging, full RAW integrity validation, video recovery, and production engine packaging are not connected yet.
+Status: runnable SwiftUI prototype with experimental PhotoRec-backed JPEG and common camera RAW scans for raw disk images. Physical-card discovery plus new-image and resume safety planning are available; privileged card imaging and production engine packaging are not connected yet. Video recovery and claims of full camera RAW integrity are explicitly outside the 1.0 scope.
 
 ## Run the prototype
 
 Requires macOS 14 or newer and Xcode with Swift 6 support. Open `Aagedal Data Revival.xcodeproj` and run the **Aagedal Data Revival** scheme. The Xcode project shares the implementation in `Sources/DataRevival` with the Swift package, which remains available for command-line builds and tests using `swift run DataRevival` and `swift test`.
 
-The prototype includes source selection, a raw-image file picker, selectable JPEG-only or JPEG-plus-camera-RAW scan profiles, persistent and reopenable session manifests, cancellation with partial-result retention, live elapsed/file-count/output-size scan activity, real result discovery, searchable and type-filtered results, basic JPEG decode validation, honest RAW/TIFF preview-decode checks, Quick Look previews, collision-safe export, searchable sample results, and live read-only discovery of removable and external whole disks through Disk Arbitration. Common TIFF-based RAW variants and additional proprietary RAW families are included in the broader photo profile. RAW/TIFF files that macOS can preview are labeled “Preview readable,” while unsupported formats remain “Not checked”; neither status claims the sensor data is intact. The disk-tools screen can verify that a proposed card-image destination is on another physical device, has enough free space, and does not collide with image sidecars. It can also validate an interrupted image for safe resume using a structurally valid whole-source ddrescue mapfile and a Data Revival record bound to the original card identity, then report rescued, pending, and bad-sector byte counts. Scans interrupted by an app restart are reconciled on the next launch. The four sample files remain illustrative metadata, not actual recovered files.
+The prototype includes source selection, a raw-image file picker, selectable JPEG-only or JPEG-plus-camera-RAW scan profiles, persistent and reopenable session manifests, cancellation with partial-result retention, live elapsed/file-count/output-size scan activity, real result discovery, searchable and type-filtered results, basic JPEG decode validation, honest RAW/TIFF preview-decode checks, Quick Look previews, collision-safe export, searchable sample results, and live read-only discovery of removable and external whole disks through Disk Arbitration. Common TIFF-based RAW variants and additional proprietary RAW families are included in the broader photo profile. RAW/TIFF files that macOS can preview are labeled “Preview readable,” while unsupported formats remain “Not checked”; neither status claims the sensor data is intact. The disk-tools screen can verify that a proposed card-image destination is on another physical device, has enough free space, and does not collide with image sidecars. It can also validate an interrupted image for safe resume using a structurally valid whole-source ddrescue mapfile and a Data Revival record bound to the original card identity, then report rescued, pending, and bad-sector byte counts. Scans interrupted by an app restart are reconciled on the next launch. Session manifests record the source image identity and PhotoRec version, executable digest, architecture, origin, and exact arguments. The three sample files remain illustrative metadata, not actual recovered files.
 
 For debug-development scans, install the Homebrew `testdisk` formula, which supplies the `photorec` executable:
 
@@ -24,7 +24,7 @@ This is an integration spike, not a production recovery release. It currently pe
 
 ## First release
 
-Focus on SD, microSD, and CFexpress cards containing FAT32 or exFAT volumes. Support JPEG and camera RAW recovery first, with clearly qualified MOV/MP4 recovery. Start development with existing raw disk images; add physical-card imaging once the recovery pipeline is tested.
+Focus on SD, microSD, and CFexpress cards containing FAT32 or exFAT volumes. Version 1.0 supports JPEG and camera RAW recovery. MOV/MP4 recovery is deferred until camera-specific recovery and validation fixtures can support an honest compatibility claim. Start development with existing raw disk images; add physical-card imaging once the recovery pipeline is tested.
 
 The main workflow is:
 
@@ -73,7 +73,7 @@ Fragmented video is a separate engineering problem. PhotoRec documents camera re
 1. Native UI prototype with explicitly labeled sample data and the source-to-results workflow.
 2. Real recovery from raw disk image files, with PhotoRec integration, persistent sessions, cancellation, and result browsing.
 3. Tested physical-device discovery and resumable card imaging with source/destination protections.
-4. Format validation and a repeatable recovery benchmark using synthetic images and owned camera recordings.
+4. Photo-format validation and a repeatable recovery benchmark using synthetic images and owned camera files.
 5. Metadata-aware recovery, more file types, and additional imaging/inspection tools.
 
 Benchmark with known original files and byte hashes. Include quick-formatted FAT32/exFAT images, contiguous and fragmented files, truncated images, corrupt metadata, cancellation, output exhaustion, and filenames containing spaces. Test destructive formatting only on disposable test images or explicitly designated test media.

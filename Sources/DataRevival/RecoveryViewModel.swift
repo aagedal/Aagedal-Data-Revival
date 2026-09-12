@@ -31,7 +31,7 @@ final class RecoveryViewModel: ObservableObject {
     func startScan(
         sourceImage: URL,
         destinationRoot: URL,
-        executableURL: URL,
+        installation: RecoveryToolInstallation,
         profile: RecoveryScanProfile
     ) {
         guard !isScanning else { return }
@@ -57,10 +57,18 @@ final class RecoveryViewModel: ObservableObject {
                 let runner = PhotoRecRunner()
                 self.runner = runner
                 let command = PhotoRecCommand.scan(
-                    executableURL: executableURL,
+                    executableURL: installation.executableURL,
                     session: created,
                     profile: profile
                 )
+                created.engineProvenance = await RecoveryToolInspector.provenance(
+                    for: installation,
+                    arguments: command.arguments
+                )
+                created.updatedAt = .now
+                try await store.save(created)
+                session = created
+                activeSession = created
                 let files = try await runner.recover(command: command) { progress in
                     await MainActor.run {
                         guard self.isScanning else { return }
@@ -129,6 +137,23 @@ final class RecoveryViewModel: ObservableObject {
                 sessions = try await store.loadAll()
             } catch {
                 errorMessage = "The saved session could not be refreshed: \(error.localizedDescription)"
+            }
+        }
+    }
+
+    func moveSessionToTrash(id: RecoverySession.ID) {
+        guard !isScanning else { return }
+        Task {
+            do {
+                _ = try await store.moveSessionToTrash(id: id)
+                if activeSession?.id == id {
+                    activeSession = nil
+                    recoveredFiles = []
+                    scanProgress = nil
+                }
+                sessions = try await store.loadAll()
+            } catch {
+                errorMessage = "The recovery session could not be moved to the Trash: \(error.localizedDescription)"
             }
         }
     }

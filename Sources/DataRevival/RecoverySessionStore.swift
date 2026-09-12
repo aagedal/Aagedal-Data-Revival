@@ -6,6 +6,7 @@ actor RecoverySessionStore {
         case destinationIsNotDirectory
         case sourceDestinationCollision
         case sessionNotFound
+        case unsafeSessionDirectory
 
         var errorDescription: String? {
             switch self {
@@ -17,6 +18,8 @@ actor RecoverySessionStore {
                 "The recovery output cannot replace or be stored inside the source image."
             case .sessionNotFound:
                 "The selected recovery session is no longer in the session catalog."
+            case .unsafeSessionDirectory:
+                "The recovery session folder could not be verified and was not moved to the Trash."
             }
         }
     }
@@ -25,11 +28,17 @@ actor RecoverySessionStore {
 
     private let catalogDirectory: URL
     private let fileManager: FileManager
+    private let trashItem: @Sendable (URL) throws -> URL?
     private var sessions: [RecoverySession]?
 
-    init(catalogDirectory: URL, fileManager: FileManager = .default) {
+    init(
+        catalogDirectory: URL,
+        fileManager: FileManager = .default,
+        trashItem: (@Sendable (URL) throws -> URL?)? = nil
+    ) {
         self.catalogDirectory = catalogDirectory.standardizedFileURL
         self.fileManager = fileManager
+        self.trashItem = trashItem ?? Self.moveItemToTrash
     }
 
     func loadAll() throws -> [RecoverySession] {
@@ -121,6 +130,32 @@ actor RecoverySessionStore {
         return session
     }
 
+    @discardableResult
+    func moveSessionToTrash(id: RecoverySession.ID) throws -> URL? {
+        var catalog = try loadAll()
+        guard let index = catalog.firstIndex(where: { $0.id == id }) else {
+            throw StoreError.sessionNotFound
+        }
+        let session = catalog[index]
+        let directory = session.sessionDirectoryURL.standardizedFileURL
+        var trashedURL: URL?
+
+        if fileManager.fileExists(atPath: directory.path) {
+            try validateManagedSessionDirectory(session)
+            trashedURL = try trashItem(directory)
+        }
+
+        catalog.remove(at: index)
+        sessions = catalog
+        try fileManager.createDirectory(at: catalogDirectory, withIntermediateDirectories: true)
+        let catalogData = try Self.encoder.encode(catalog)
+        try catalogData.write(
+            to: catalogDirectory.appendingPathComponent("sessions.json"),
+            options: .atomic
+        )
+        return trashedURL
+    }
+
     func createSession(sourceImage: URL, destinationRoot: URL) throws -> RecoverySession {
         let source = sourceImage.resolvingSymlinksInPath().standardizedFileURL
         let destination = destinationRoot.resolvingSymlinksInPath().standardizedFileURL
@@ -136,6 +171,9 @@ actor RecoverySessionStore {
         guard fileManager.fileExists(atPath: destination.path, isDirectory: &isDirectory), isDirectory.boolValue else {
             throw StoreError.destinationIsNotDirectory
         }
+        guard fileManager.isWritableFile(atPath: destination.path) else {
+            throw StoreError.destinationIsNotDirectory
+        }
 
         // A regular source image cannot contain a directory, but this also guards
         // against choosing the image itself through an alias or symlink.
@@ -144,12 +182,19 @@ actor RecoverySessionStore {
             throw StoreError.sourceDestinationCollision
         }
 
+        let availableCapacity = try destination.resourceValues(
+            forKeys: [.volumeAvailableCapacityForImportantUsageKey]
+        ).volumeAvailableCapacityForImportantUsage
+        try RecoveryStorageEstimate(
+            sourceByteCount: Int64(sourceValues.fileSize ?? 0)
+        ).validateRecoveryOutputCapacity(availableCapacity)
+
         let id = UUID()
         let sessionDirectory = destination.appendingPathComponent("DataRevival-\(id.uuidString)", isDirectory: true)
         try fileManager.createDirectory(at: sessionDirectory, withIntermediateDirectories: false)
 
         let now = Date()
-        let session = RecoverySession(
+        var session = RecoverySession(
             id: id,
             createdAt: now,
             updatedAt: now,
@@ -158,6 +203,10 @@ actor RecoverySessionStore {
             status: .ready,
             recoveredFiles: [],
             failureMessage: nil
+        )
+        session.sourceIdentity = try RecoverySourceIdentity.capture(
+            at: source,
+            fileManager: fileManager
         )
         try save(session)
         return session
@@ -184,10 +233,30 @@ actor RecoverySessionStore {
         )
     }
 
+    private func validateManagedSessionDirectory(_ session: RecoverySession) throws {
+        let directory = session.sessionDirectoryURL.standardizedFileURL
+        guard directory.lastPathComponent == "DataRevival-\(session.id.uuidString)",
+              directory.resolvingSymlinksInPath() == directory,
+              let attributes = try? fileManager.attributesOfItem(atPath: directory.path),
+              attributes[.type] as? FileAttributeType == .typeDirectory,
+              let manifestData = try? Data(contentsOf: session.manifestURL),
+              let manifest = try? Self.decoder.decode(RecoverySession.self, from: manifestData),
+              manifest.id == session.id,
+              manifest.sessionDirectoryURL.standardizedFileURL == directory else {
+            throw StoreError.unsafeSessionDirectory
+        }
+    }
+
     private static func defaultCatalogDirectory() -> URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
         return base.appendingPathComponent("DataRevival", isDirectory: true)
+    }
+
+    private static func moveItemToTrash(_ url: URL) throws -> URL? {
+        var resultingURL: NSURL?
+        try FileManager.default.trashItem(at: url, resultingItemURL: &resultingURL)
+        return resultingURL as URL?
     }
 
     private static let encoder: JSONEncoder = {

@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 enum RecoveryTool: String, CaseIterable, Identifiable, Sendable {
     case photoRec = "photorec"
@@ -20,6 +21,13 @@ enum RecoveryTool: String, CaseIterable, Identifiable, Sendable {
             URL(fileURLWithPath: "/opt/local/bin/\(rawValue)")
         ]
     }
+
+    var versionArguments: [String] {
+        switch self {
+        case .photoRec: ["/version"]
+        case .ddrescue: ["--version"]
+        }
+    }
 }
 
 struct RecoveryToolInstallation: Sendable, Equatable {
@@ -31,6 +39,69 @@ struct RecoveryToolInstallation: Sendable, Equatable {
     let tool: RecoveryTool
     let executableURL: URL
     let origin: Origin
+}
+
+enum RecoveryToolInspector {
+    static func provenance(
+        for installation: RecoveryToolInstallation,
+        arguments: [String]
+    ) async -> RecoveryEngineProvenance {
+        async let version = versionDescription(for: installation)
+        async let digest = executableSHA256(at: installation.executableURL)
+
+        return await RecoveryEngineProvenance(
+            name: installation.tool.rawValue,
+            versionDescription: version,
+            executableSHA256: digest,
+            processArchitecture: processArchitecture,
+            origin: installation.origin == .appBundle ? .appBundle : .developmentInstall,
+            arguments: arguments
+        )
+    }
+
+    static func versionDescription(
+        for installation: RecoveryToolInstallation
+    ) async -> String? {
+        await Task.detached {
+            let process = Process()
+            let output = Pipe()
+            process.executableURL = installation.executableURL
+            process.arguments = installation.tool.versionArguments
+            process.standardOutput = output
+            process.standardError = output
+
+            do {
+                try process.run()
+                process.waitUntilExit()
+                guard process.terminationStatus == 0 else { return nil }
+                let data = output.fileHandleForReading.readDataToEndOfFile()
+                guard let text = String(data: data, encoding: .utf8) else { return nil }
+                return text
+                    .split(whereSeparator: \Character.isNewline)
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .first(where: { !$0.isEmpty })
+            } catch {
+                return nil
+            }
+        }.value
+    }
+
+    static func executableSHA256(at url: URL) async -> String? {
+        await Task.detached {
+            guard let data = try? Data(contentsOf: url, options: .mappedIfSafe) else { return nil }
+            return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+        }.value
+    }
+
+    private static var processArchitecture: String {
+        #if arch(arm64)
+        "arm64"
+        #elseif arch(x86_64)
+        "x86_64"
+        #else
+        "unknown"
+        #endif
+    }
 }
 
 enum RecoveryToolLocator {

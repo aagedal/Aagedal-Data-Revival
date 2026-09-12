@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-build:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Run foundation tests
+        run: swift test
+
+      - name: Build release configuration
+        run: >-
+          xcodebuild
+          -project 'Aagedal Data Revival.xcodeproj'
+          -scheme 'Aagedal Data Revival'
+          -configuration Release
+          -destination 'generic/platform=macOS'
+          -derivedDataPath "$RUNNER_TEMP/DataRevivalDerived"
+          CODE_SIGNING_ALLOWED=NO
+          build
