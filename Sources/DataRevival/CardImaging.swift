@@ -333,19 +333,7 @@ struct DDRescueCommand: Sendable, Equatable {
 
 enum DDRescueExecutableLocator {
     static func locate(fileManager: FileManager = .default) -> URL? {
-        if let bundled = Bundle.main.url(forAuxiliaryExecutable: "ddrescue"),
-           fileManager.isExecutableFile(atPath: bundled.path) {
-            return bundled
-        }
-
-        let candidates = [
-            "/opt/homebrew/bin/ddrescue",
-            "/usr/local/bin/ddrescue",
-            "/opt/local/bin/ddrescue"
-        ]
-        return candidates.lazy.map(URL.init(fileURLWithPath:)).first {
-            fileManager.isExecutableFile(atPath: $0.path)
-        }
+        RecoveryToolLocator.locate(.ddrescue, fileManager: fileManager)?.executableURL
     }
 }
 

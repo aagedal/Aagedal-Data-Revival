@@ -21,19 +21,7 @@ struct PhotoRecCommand: Sendable, Equatable {
 
 enum PhotoRecExecutableLocator {
     static func locate(fileManager: FileManager = .default) -> URL? {
-        if let bundled = Bundle.main.url(forAuxiliaryExecutable: "photorec"),
-           fileManager.isExecutableFile(atPath: bundled.path) {
-            return bundled
-        }
-
-        let candidates = [
-            "/opt/homebrew/bin/photorec",
-            "/usr/local/bin/photorec",
-            "/opt/local/bin/photorec"
-        ]
-        return candidates.lazy.map(URL.init(fileURLWithPath:)).first {
-            fileManager.isExecutableFile(atPath: $0.path)
-        }
+        RecoveryToolLocator.locate(.photoRec, fileManager: fileManager)?.executableURL
     }
 }
 

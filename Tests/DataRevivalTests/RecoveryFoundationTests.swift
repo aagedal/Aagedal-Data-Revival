@@ -8,6 +8,88 @@ import UniformTypeIdentifiers
 
 @Suite("Recovery foundation")
 struct RecoveryFoundationTests {
+    @Test("Recovery tools prefer bundled executables and release mode has no external fallback")
+    func recoveryToolResolution() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DataRevivalToolLocator-\(UUID().uuidString)", isDirectory: true)
+        let bundleRoot = root.appendingPathComponent("Data Revival.app", isDirectory: true)
+        let helpers = bundleRoot
+            .appendingPathComponent("Contents", isDirectory: true)
+            .appendingPathComponent("Helpers", isDirectory: true)
+        let bundled = helpers.appendingPathComponent("photorec")
+        let development = root.appendingPathComponent("homebrew-photorec")
+        try FileManager.default.createDirectory(at: helpers, withIntermediateDirectories: true)
+        try Data("#!/bin/sh\n".utf8).write(to: bundled)
+        try Data("#!/bin/sh\n".utf8).write(to: development)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: NSNumber(value: Int16(0o755))],
+            ofItemAtPath: bundled.path
+        )
+        try FileManager.default.setAttributes(
+            [.posixPermissions: NSNumber(value: Int16(0o755))],
+            ofItemAtPath: development.path
+        )
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let preferred = RecoveryToolLocator.selectInstallation(
+            for: .photoRec,
+            bundledCandidates: [bundled],
+            bundleRoot: bundleRoot,
+            developmentCandidates: [development],
+            allowDevelopmentFallback: true
+        )
+        #expect(preferred?.origin == .appBundle)
+        #expect(preferred?.executableURL == bundled)
+
+        try FileManager.default.removeItem(at: bundled)
+        let releaseResult = RecoveryToolLocator.selectInstallation(
+            for: .photoRec,
+            bundledCandidates: [bundled],
+            bundleRoot: bundleRoot,
+            developmentCandidates: [development],
+            allowDevelopmentFallback: false
+        )
+        #expect(releaseResult == nil)
+
+        let debugResult = RecoveryToolLocator.selectInstallation(
+            for: .photoRec,
+            bundledCandidates: [bundled],
+            bundleRoot: bundleRoot,
+            developmentCandidates: [development],
+            allowDevelopmentFallback: true
+        )
+        #expect(debugResult?.origin == .developmentInstall)
+    }
+
+    @Test("A bundled recovery tool cannot escape the app through a symlink")
+    func bundledToolSymlinkProtection() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DataRevivalToolSymlink-\(UUID().uuidString)", isDirectory: true)
+        let bundleRoot = root.appendingPathComponent("Data Revival.app", isDirectory: true)
+        let helpers = bundleRoot
+            .appendingPathComponent("Contents", isDirectory: true)
+            .appendingPathComponent("Helpers", isDirectory: true)
+        let external = root.appendingPathComponent("external-photorec")
+        let link = helpers.appendingPathComponent("photorec")
+        try FileManager.default.createDirectory(at: helpers, withIntermediateDirectories: true)
+        try Data("#!/bin/sh\n".utf8).write(to: external)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: NSNumber(value: Int16(0o755))],
+            ofItemAtPath: external.path
+        )
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: external)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let installation = RecoveryToolLocator.selectInstallation(
+            for: .photoRec,
+            bundledCandidates: [link],
+            bundleRoot: bundleRoot,
+            developmentCandidates: [],
+            allowDevelopmentFallback: false
+        )
+        #expect(installation == nil)
+    }
+
     @Test("Disk discovery keeps only whole recovery-source devices")
     func storageDeviceFiltering() throws {
         let external = try #require(StorageDevice(

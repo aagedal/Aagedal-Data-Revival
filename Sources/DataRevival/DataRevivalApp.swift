@@ -421,6 +421,8 @@ private struct RecoveryView: View {
             )
             .font(.callout)
             .foregroundStyle(.secondary)
+
+            recoveryEngineStatus
         }
         .padding(32)
         .onAppear { diskDevices.start() }
@@ -562,8 +564,8 @@ private struct RecoveryView: View {
 
     private func chooseDestinationAndScan() {
         guard let imageURL else { return }
-        guard let executableURL = PhotoRecExecutableLocator.locate() else {
-            issue = "PhotoRec is not installed. Install TestDisk/PhotoRec with Homebrew for development, or add a bundled photorec executable before scanning."
+        guard let installation = RecoveryToolLocator.locate(.photoRec) else {
+            issue = RecoveryToolLocator.unavailableMessage(for: .photoRec)
             return
         }
 
@@ -580,8 +582,43 @@ private struct RecoveryView: View {
         recovery.startJPEGScan(
             sourceImage: imageURL,
             destinationRoot: destination,
-            executableURL: executableURL
+            executableURL: installation.executableURL
         )
+    }
+
+    private var recoveryEngineStatus: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Recovery engines", systemImage: "shippingbox")
+                .font(.headline)
+            ForEach(RecoveryTool.allCases) { tool in
+                let installation = RecoveryToolLocator.locate(tool)
+                HStack {
+                    Image(systemName: installation == nil ? "xmark.circle" : "checkmark.circle.fill")
+                        .foregroundStyle(installation == nil ? .orange : .green)
+                    Text(tool.displayName)
+                    Spacer()
+                    Text(engineOriginLabel(installation))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Text(RecoveryToolLocator.allowsDevelopmentFallback
+                 ? "This debug build may use package-manager installations. Release builds accept only engines shipped inside the signed app."
+                 : "This release build uses only engines shipped inside the signed app.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func engineOriginLabel(_ installation: RecoveryToolInstallation?) -> String {
+        switch installation?.origin {
+        case .appBundle: "Bundled"
+        case .developmentInstall: "Development install"
+        case nil: "Unavailable"
+        }
     }
 
     private func chooseExportDestination() {
