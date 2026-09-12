@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "reviewedOn": "2026-09-13",
+  "target": {
+    "architecture": "arm64",
+    "minimumMacOS": "14.0"
+  },
+  "engines": {
+    "photorec": {
+      "displayName": "PhotoRec",
+      "version": "7.2",
+      "sourceArchiveName": "testdisk-7.2.tar.bz2",
+      "sourceURL": "https://www.cgsecurity.org/testdisk-7.2.tar.bz2",
+      "sourceSHA256": "f8343be20cb4001c5d91a2e3bcd918398f00ae6d8310894a5a9f2feb813c283f",
+      "releaseURL": "https://www.cgsecurity.org/wiki/TestDisk_7.2_Release",
+      "license": "GPL-2.0-or-later"
+    },
+    "ddrescue": {
+      "displayName": "GNU ddrescue",
+      "version": "1.30",
+      "sourceArchiveName": "ddrescue-1.30.tar.lz",
+      "sourceURL": "https://ftp.gnu.org/gnu/ddrescue/ddrescue-1.30.tar.lz",
+      "sourceSHA256": "2264622d309d6c87a1cfc19148292b8859a688e9bc02d4702f5cd4f288745542",
+      "releaseURL": "https://lists.gnu.org/archive/html/info-gnu/2026-01/msg00001.html",
+      "license": "GPL-2.0-or-later"
+    }
+  }
+}

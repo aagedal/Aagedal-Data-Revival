@@ -20,6 +20,8 @@ Select a nonempty raw image, choose a scan profile, choose **Recover JPEGs…** 
 
 Package-manager engines are a debug-only convenience. Release builds resolve `photorec` and `ddrescue` only from inside the application bundle. See [Recovery engine packaging](Documentation/RecoveryEnginePackaging.md) for the required layout, signing order, dependency rules, and bundle audit.
 
+Production source inputs are pinned to PhotoRec 7.2 and GNU ddrescue 1.30. On an Apple silicon development Mac, `Scripts/build-recovery-engines.sh` verifies the upstream source hashes and produces audited arm64-only binaries plus their license and corresponding-source artifacts. See [Recovery engine versions](Documentation/RecoveryEngineVersions.md) for the selection and build details.
+
 This is an integration spike, not a production recovery release. It currently performs a whole-image JPEG carve with basic decode and end-marker validation. Use disposable test images and copies of owned media.
 
 ## First release

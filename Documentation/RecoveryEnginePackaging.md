@@ -30,6 +30,12 @@ the corresponding source offer/source archives must be versioned and reviewed
 before distribution. In particular, PhotoRec's GPL terms affect how the final
 application and its source are distributed.
 
+The reviewed source versions and checksums are locked in
+`Configuration/RecoveryEngines.lock.json`. Build and audit the arm64 engines
+with `Scripts/build-recovery-engines.sh`; selection rationale and deliberately
+disabled optional dependencies are documented in
+`Documentation/RecoveryEngineVersions.md`.
+
 ## Release gate
 
 After creating and signing an archive, run:

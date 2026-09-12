@@ -120,6 +120,35 @@ struct RecoveryFoundationTests {
         #expect(provenance.arguments.first == "/cmd")
     }
 
+    @Test("Production recovery engine sources are completely pinned")
+    func recoveryEngineSourceLock() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let lockURL = repositoryRoot
+            .appendingPathComponent("Configuration/RecoveryEngines.lock.json")
+        let lock = try JSONDecoder().decode(
+            RecoveryEngineSourceLock.self,
+            from: Data(contentsOf: lockURL)
+        )
+
+        #expect(lock.schemaVersion == 1)
+        #expect(lock.target.architecture == "arm64")
+        #expect(lock.target.minimumMacOS == "14.0")
+        #expect(Set(lock.engines.keys) == ["photorec", "ddrescue"])
+
+        for engine in lock.engines.values {
+            #expect(!engine.version.isEmpty)
+            #expect(engine.sourceURL.scheme == "https")
+            #expect(engine.sourceURL.lastPathComponent == engine.sourceArchiveName)
+            #expect(engine.releaseURL.scheme == "https")
+            #expect(engine.sourceSHA256.count == 64)
+            #expect(engine.sourceSHA256.allSatisfy { $0.isHexDigit && !$0.isUppercase })
+            #expect(engine.license == "GPL-2.0-or-later")
+        }
+    }
+
     @Test("Disk discovery keeps only whole recovery-source devices")
     func storageDeviceFiltering() throws {
         let external = try #require(StorageDevice(
@@ -980,6 +1009,26 @@ private actor DDRescueProgressRecorder {
     func append(_ snapshot: DDRescueMapSnapshot) {
         snapshots.append(snapshot)
     }
+}
+
+private struct RecoveryEngineSourceLock: Decodable {
+    struct Target: Decodable {
+        let architecture: String
+        let minimumMacOS: String
+    }
+
+    struct Engine: Decodable {
+        let version: String
+        let sourceArchiveName: String
+        let sourceURL: URL
+        let sourceSHA256: String
+        let releaseURL: URL
+        let license: String
+    }
+
+    let schemaVersion: Int
+    let target: Target
+    let engines: [String: Engine]
 }
 
 private actor RecordingDiskLifecycleController: DiskLifecycleControlling {
