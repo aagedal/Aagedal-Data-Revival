@@ -6,6 +6,7 @@ struct RecoverySession: Codable, Identifiable, Sendable, Equatable {
         case scanning
         case completed
         case cancelled
+        case interrupted
         case failed
     }
 

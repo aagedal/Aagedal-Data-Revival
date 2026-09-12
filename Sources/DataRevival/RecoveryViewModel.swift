@@ -20,7 +20,7 @@ final class RecoveryViewModel: ObservableObject {
     func loadSessions() {
         Task {
             do {
-                sessions = try await store.loadAll()
+                sessions = try await store.reconcileInterruptedSessions()
             } catch {
                 errorMessage = "Saved recovery sessions could not be loaded: \(error.localizedDescription)"
             }
@@ -61,16 +61,20 @@ final class RecoveryViewModel: ObservableObject {
                 if var cancelled = session {
                     cancelled.status = .cancelled
                     cancelled.updatedAt = .now
+                    cancelled.recoveredFiles = collectPartialFiles(for: cancelled)
                     try? await store.save(cancelled)
                     activeSession = cancelled
+                    recoveredFiles = cancelled.recoveredFiles
                 }
             } catch {
                 if var failed = session {
                     failed.status = .failed
                     failed.updatedAt = .now
                     failed.failureMessage = error.localizedDescription
+                    failed.recoveredFiles = collectPartialFiles(for: failed)
                     try? await store.save(failed)
                     activeSession = failed
+                    recoveredFiles = failed.recoveredFiles
                 }
                 errorMessage = error.localizedDescription
             }
@@ -91,5 +95,16 @@ final class RecoveryViewModel: ObservableObject {
         guard !isScanning else { return }
         activeSession = nil
         recoveredFiles = []
+    }
+
+    func openSession(id: RecoverySession.ID) {
+        guard !isScanning, let session = sessions.first(where: { $0.id == id }) else { return }
+        activeSession = session
+        recoveredFiles = session.recoveredFiles
+    }
+
+    private func collectPartialFiles(for session: RecoverySession) -> [RecoveredFile] {
+        (try? PhotoRecRunner.collectRecoveredFiles(in: session.sessionDirectoryURL))
+            ?? session.recoveredFiles
     }
 }

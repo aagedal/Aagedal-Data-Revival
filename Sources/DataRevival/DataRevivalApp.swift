@@ -53,6 +53,7 @@ private struct RecoveryView: View {
     @State private var showingDemo = false
     @State private var selection: Int?
     @State private var recoveredSelection: UUID?
+    @State private var sessionSelection: UUID?
     @State private var filter = "All files"
     @State private var query = ""
     @State private var issue: String?
@@ -268,14 +269,14 @@ private struct RecoveryView: View {
                     description: Text("Sessions will appear here after you start a scan.")
                 )
             } else {
-                List(recovery.sessions) { session in
+                List(recovery.sessions, selection: $sessionSelection) { session in
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
                             Text(session.sourceImageURL.lastPathComponent).font(.headline)
                             Spacer()
                             Text(session.status.rawValue.capitalized)
                                 .font(.caption.weight(.medium))
-                                .foregroundStyle(session.status == .failed ? .red : .secondary)
+                                .foregroundStyle(sessionStatusColor(session.status))
                         }
                         Text("\(session.recoveredFiles.count) files • \(session.updatedAt.formatted(date: .abbreviated, time: .shortened))")
                             .font(.callout).foregroundStyle(.secondary)
@@ -283,6 +284,14 @@ private struct RecoveryView: View {
                             .font(.caption.monospaced()).foregroundStyle(.tertiary).lineLimit(1)
                     }
                     .padding(.vertical, 6)
+                    .tag(session.id)
+                }
+                .onChange(of: sessionSelection) { _, id in
+                    guard let id else { return }
+                    recovery.openSession(id: id)
+                    recoveredSelection = nil
+                    workspace = .recover
+                    sessionSelection = nil
                 }
             }
         }
@@ -376,7 +385,16 @@ private struct RecoveryView: View {
         case .scanning: "Scanning \(session.sourceImageURL.lastPathComponent)"
         case .completed: "\(session.recoveredFiles.count) JPEG files found in \(session.sourceImageURL.lastPathComponent)"
         case .cancelled: "The scan was cancelled. Partial output was preserved."
+        case .interrupted: "The app stopped before the scan finished. Partial output was preserved."
         case .failed: session.failureMessage ?? "The scan failed."
+        }
+    }
+
+    private func sessionStatusColor(_ status: RecoverySession.Status) -> Color {
+        switch status {
+        case .failed: .red
+        case .cancelled, .interrupted: .orange
+        case .ready, .scanning, .completed: .secondary
         }
     }
 

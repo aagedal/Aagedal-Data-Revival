@@ -53,6 +53,39 @@ struct RecoveryFoundationTests {
         #expect(FileManager.default.fileExists(atPath: session.manifestURL.path))
     }
 
+    @Test("Interrupted scans retain partial files and become reopenable")
+    func interruptedSessionReconciliation() async throws {
+        let temporaryRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DataRevivalInterrupted-\(UUID().uuidString)", isDirectory: true)
+        let source = temporaryRoot.appendingPathComponent("camera.dd")
+        let destination = temporaryRoot.appendingPathComponent("output", isDirectory: true)
+        let catalog = temporaryRoot.appendingPathComponent("catalog", isDirectory: true)
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+        try Data([0x00]).write(to: source)
+        defer { try? FileManager.default.removeItem(at: temporaryRoot) }
+
+        let store = RecoverySessionStore(catalogDirectory: catalog)
+        var session = try await store.createSession(sourceImage: source, destinationRoot: destination)
+        session.status = .scanning
+        try await store.save(session)
+
+        let output = session.sessionDirectoryURL.appendingPathComponent("recovered.1", isDirectory: true)
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        try Data([0xFF, 0xD8, 0xFF, 0xD9]).write(to: output.appendingPathComponent("partial.jpg"))
+
+        let reconciled = try await RecoverySessionStore(catalogDirectory: catalog)
+            .reconcileInterruptedSessions()
+        let restored = try #require(reconciled.first)
+        #expect(restored.status == .interrupted)
+        #expect(restored.recoveredFiles.count == 1)
+        #expect(restored.recoveredFiles.first?.name == "partial.jpg")
+
+        let manifestData = try Data(contentsOf: restored.manifestURL)
+        let manifest = try JSONDecoder.iso8601.decode(RecoverySession.self, from: manifestData)
+        #expect(manifest.status == .interrupted)
+        #expect(manifest.recoveredFiles.count == 1)
+    }
+
     @Test("Recovered files are found only under PhotoRec output folders")
     func collectRecoveredFiles() throws {
         let root = FileManager.default.temporaryDirectory
@@ -85,5 +118,13 @@ struct RecoveryFoundationTests {
 
         #expect(files.isEmpty)
         #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("runner.log").path))
+    }
+}
+
+private extension JSONDecoder {
+    static var iso8601: JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return decoder
     }
 }

@@ -8,7 +8,7 @@ Status: runnable SwiftUI prototype with an experimental PhotoRec-backed JPEG sca
 
 Requires macOS 14 or newer and Xcode with Swift 6 support. Open `Aagedal Data Revival.xcodeproj` and run the **Aagedal Data Revival** scheme. The Xcode project shares the implementation in `Sources/DataRevival` with the Swift package, which remains available for command-line builds and tests using `swift run DataRevival` and `swift test`.
 
-The prototype includes source selection, a raw-image file picker, persistent session manifests, cancellation, real JPEG result discovery, searchable sample results, and placeholders for disk tools. The four sample files remain illustrative metadata, not actual recovered files.
+The prototype includes source selection, a raw-image file picker, persistent and reopenable session manifests, cancellation with partial-result retention, real JPEG result discovery, searchable sample results, and placeholders for disk tools. Scans interrupted by an app restart are reconciled on the next launch. The four sample files remain illustrative metadata, not actual recovered files.
 
 For development scans, install the Homebrew `testdisk` formula, which supplies the `photorec` executable:
 

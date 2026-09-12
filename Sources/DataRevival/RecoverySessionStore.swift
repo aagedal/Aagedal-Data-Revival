@@ -46,6 +46,44 @@ actor RecoverySessionStore {
         return decoded.sorted { $0.updatedAt > $1.updatedAt }
     }
 
+    /// Repairs manifests left in a transient state when the app stopped while
+    /// PhotoRec was running. Any output already written by PhotoRec remains
+    /// useful and is added to the session before it is persisted.
+    func reconcileInterruptedSessions() throws -> [RecoverySession] {
+        var catalog = try loadAll()
+        var changedSessions: [RecoverySession] = []
+
+        for index in catalog.indices where catalog[index].status == .scanning {
+            var session = catalog[index]
+            session.status = .interrupted
+            session.updatedAt = .now
+            session.failureMessage = "The app stopped before this scan finished. Partial output was preserved."
+            session.recoveredFiles = (try? PhotoRecRunner.collectRecoveredFiles(
+                in: session.sessionDirectoryURL,
+                fileManager: fileManager
+            )) ?? session.recoveredFiles
+            catalog[index] = session
+            changedSessions.append(session)
+        }
+
+        guard !changedSessions.isEmpty else {
+            return catalog.sorted { $0.updatedAt > $1.updatedAt }
+        }
+
+        try fileManager.createDirectory(at: catalogDirectory, withIntermediateDirectories: true)
+        for session in changedSessions {
+            let manifestData = try Self.encoder.encode(session)
+            try manifestData.write(to: session.manifestURL, options: .atomic)
+        }
+        sessions = catalog
+        let catalogData = try Self.encoder.encode(catalog)
+        try catalogData.write(
+            to: catalogDirectory.appendingPathComponent("sessions.json"),
+            options: .atomic
+        )
+        return catalog.sorted { $0.updatedAt > $1.updatedAt }
+    }
+
     func createSession(sourceImage: URL, destinationRoot: URL) throws -> RecoverySession {
         let source = sourceImage.resolvingSymlinksInPath().standardizedFileURL
         let destination = destinationRoot.resolvingSymlinksInPath().standardizedFileURL
