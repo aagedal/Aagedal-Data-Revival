@@ -2,13 +2,13 @@
 
 A proposed open-source, native macOS app for recovering files from accidentally formatted camera cards.
 
-Status: runnable SwiftUI prototype with an experimental PhotoRec-backed JPEG scan for raw disk images. Physical-card discovery and destination safety planning are available; privileged card imaging, RAW/video recovery, and production engine packaging are not connected yet.
+Status: runnable SwiftUI prototype with an experimental PhotoRec-backed JPEG scan for raw disk images. Physical-card discovery plus new-image and resume safety planning are available; privileged card imaging, RAW/video recovery, and production engine packaging are not connected yet.
 
 ## Run the prototype
 
 Requires macOS 14 or newer and Xcode with Swift 6 support. Open `Aagedal Data Revival.xcodeproj` and run the **Aagedal Data Revival** scheme. The Xcode project shares the implementation in `Sources/DataRevival` with the Swift package, which remains available for command-line builds and tests using `swift run DataRevival` and `swift test`.
 
-The prototype includes source selection, a raw-image file picker, persistent and reopenable session manifests, cancellation with partial-result retention, real JPEG result discovery and basic decode validation, Quick Look previews, collision-safe export, searchable sample results, and live read-only discovery of removable and external whole disks through Disk Arbitration. The disk-tools screen can verify that a proposed card-image destination is on another physical device, has enough free space, and does not collide with image sidecars. Scans interrupted by an app restart are reconciled on the next launch. The four sample files remain illustrative metadata, not actual recovered files.
+The prototype includes source selection, a raw-image file picker, persistent and reopenable session manifests, cancellation with partial-result retention, real JPEG result discovery and basic decode validation, Quick Look previews, collision-safe export, searchable sample results, and live read-only discovery of removable and external whole disks through Disk Arbitration. The disk-tools screen can verify that a proposed card-image destination is on another physical device, has enough free space, and does not collide with image sidecars. It can also validate an interrupted image for safe resume using a nonempty ddrescue mapfile and a Data Revival record bound to the original card identity. Scans interrupted by an app restart are reconciled on the next launch. The four sample files remain illustrative metadata, not actual recovered files.
 
 For development scans, install the Homebrew `testdisk` formula, which supplies the `photorec` executable:
 
@@ -52,7 +52,7 @@ Sessions should survive app restarts. Distinguish found files from successfully 
 
 Use argument arrays rather than shell command strings. Give each session an isolated output and working directory. Record engine versions, configuration, source identity, logs, and validation results.
 
-The current ddrescue adapter builds a shell-free, mapfile-backed imaging command and preserves separate process output. Starting it from the UI remains disabled until a narrowly scoped privileged helper and safe unmount flow are implemented.
+The current ddrescue adapter builds a shell-free, mapfile-backed imaging command, appends separate process output, and writes source-bound resume metadata before launch. Starting it from the UI remains disabled until a narrowly scoped privileged helper and safe unmount flow are implemented.
 
 ## Source protection
 

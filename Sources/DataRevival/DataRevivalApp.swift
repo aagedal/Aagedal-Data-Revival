@@ -390,7 +390,7 @@ private struct RecoveryView: View {
                             .foregroundStyle(.secondary)
                         if let plan = preparedImagingPlan, plan.sourceDevice.id == device.id {
                             Label(
-                                "\(plan.imageURL.lastPathComponent) passed the physical-device, collision, and free-space checks.",
+                                imagingPlanSummary(plan),
                                 systemImage: "checkmark.circle.fill"
                             )
                             .font(.callout)
@@ -401,6 +401,9 @@ private struct RecoveryView: View {
                                 chooseCardImageDestination(for: device)
                             }
                             .buttonStyle(.borderedProminent)
+                            Button("Check existing image for resume…") {
+                                chooseCardImageToResume(for: device)
+                            }
                             Button("Start imaging") {}
                                 .disabled(true)
                                 .help("A narrowly scoped privileged helper and safe unmount flow are still required before raw-device imaging can start.")
@@ -521,6 +524,42 @@ private struct RecoveryView: View {
         }
     }
 
+    private func chooseCardImageToResume(for device: StorageDevice) {
+        let panel = NSOpenPanel()
+        panel.title = "Choose an interrupted card image"
+        panel.message = "Choose the IMG file beside its .map and .datarevival.json sidecars. Data Revival will verify the original card identity and remaining free space."
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        if let imageType = UTType(filenameExtension: "img") {
+            panel.allowedContentTypes = [imageType]
+        }
+        guard panel.runModal() == .OK, let imageURL = panel.url else { return }
+
+        do {
+            let destinationDirectory = imageURL.deletingLastPathComponent()
+            let destinationDisk = try DiskIdentityResolver.wholeDiskBSDName(
+                containing: destinationDirectory
+            )
+            let capacity = try destinationDirectory.resourceValues(
+                forKeys: [.volumeAvailableCapacityForImportantUsageKey]
+            ).volumeAvailableCapacityForImportantUsage
+            let plan = try CardImagingPlan.prepareResume(
+                sourceDevice: device,
+                imageURL: imageURL,
+                destinationWholeDiskBSDName: destinationDisk,
+                availableCapacity: capacity
+            )
+            try plan.validateCurrentSource(
+                DiskIdentityResolver.currentDevice(bsdName: device.bsdName)
+            )
+            preparedImagingPlan = plan
+        } catch {
+            preparedImagingPlan = nil
+            issue = error.localizedDescription
+        }
+    }
+
     private func chooseDestinationAndScan() {
         guard let imageURL else { return }
         guard let executableURL = PhotoRecExecutableLocator.locate() else {
@@ -595,6 +634,15 @@ private struct RecoveryView: View {
         case .cancelled: "The scan was cancelled. Partial output was preserved."
         case .interrupted: "The app stopped before the scan finished. Partial output was preserved."
         case .failed: session.failureMessage ?? "The scan failed."
+        }
+    }
+
+    private func imagingPlanSummary(_ plan: CardImagingPlan) -> String {
+        switch plan.mode {
+        case .create:
+            "\(plan.imageURL.lastPathComponent) passed the physical-device, collision, and free-space checks."
+        case .resume:
+            "\(plan.imageURL.lastPathComponent) matches this card and has a usable ddrescue mapfile and enough remaining space."
         }
     }
 

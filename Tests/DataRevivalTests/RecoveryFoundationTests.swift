@@ -156,6 +156,138 @@ struct RecoveryFoundationTests {
         #expect(FileManager.default.fileExists(atPath: command.runnerLogURL.path))
     }
 
+    @Test("Card imaging writes source-bound metadata before invoking ddrescue")
+    func cardImagingPersistsResumeMetadata() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DataRevivalResumeMetadata-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let source = try #require(makeStorageDevice(bsdName: "disk7", byteCount: 64_000))
+        let plan = try CardImagingPlan.prepare(
+            sourceDevice: source,
+            imageURL: root.appendingPathComponent("camera.img"),
+            destinationWholeDiskBSDName: "disk2",
+            availableCapacity: 128_000
+        )
+        let command = DDRescueCommand.image(
+            executableURL: URL(fileURLWithPath: "/usr/bin/true"),
+            plan: plan
+        )
+
+        try await DDRescueRunner().image(command: command)
+
+        let data = try Data(contentsOf: plan.resumeRecordURL)
+        let record = try JSONDecoder().decode(CardImagingResumeRecord.self, from: data)
+        #expect(record == plan.resumeRecord)
+        #expect(record.source.matches(source))
+    }
+
+    @Test("An interrupted card image resumes only with its original source")
+    func cardImageResumeProtection() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DataRevivalResumePlan-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let guid = Data([1, 2, 3, 4])
+        let original = try #require(makeStorageDevice(bsdName: "disk7", byteCount: 64_000, guid: guid))
+        let image = root.appendingPathComponent("camera.img")
+        let initialPlan = try CardImagingPlan.prepare(
+            sourceDevice: original,
+            imageURL: image,
+            destinationWholeDiskBSDName: "disk2",
+            availableCapacity: 128_000
+        )
+        try Data(repeating: 0, count: 16_000).write(to: image)
+        try Data("# Mapfile. Created by GNU ddrescue\n".utf8).write(to: initialPlan.mapURL)
+        try JSONEncoder().encode(initialPlan.resumeRecord).write(to: initialPlan.resumeRecordURL)
+
+        let reconnected = try #require(makeStorageDevice(
+            bsdName: "disk9",
+            byteCount: 64_000,
+            guid: guid
+        ))
+        let resumed = try CardImagingPlan.prepareResume(
+            sourceDevice: reconnected,
+            imageURL: image,
+            destinationWholeDiskBSDName: "disk2",
+            availableCapacity: 64_000
+        )
+        #expect(resumed.mode == .resume)
+        #expect(resumed.sourceDevice.bsdName == "disk9")
+
+        let resumeCommand = DDRescueCommand.image(
+            executableURL: URL(fileURLWithPath: "/usr/bin/true"),
+            plan: resumed
+        )
+        try await DDRescueRunner().image(command: resumeCommand)
+        #expect(resumeCommand.arguments.contains("/dev/rdisk9"))
+        let persistedRecord = try JSONDecoder().decode(
+            CardImagingResumeRecord.self,
+            from: Data(contentsOf: initialPlan.resumeRecordURL)
+        )
+        #expect(persistedRecord == initialPlan.resumeRecord)
+
+        let replacement = try #require(makeStorageDevice(
+            bsdName: "disk9",
+            byteCount: 64_000,
+            guid: Data([9, 8, 7, 6])
+        ))
+        #expect(throws: CardImagingError.resumeSourceMismatch) {
+            try CardImagingPlan.prepareResume(
+                sourceDevice: replacement,
+                imageURL: image,
+                destinationWholeDiskBSDName: "disk2",
+                availableCapacity: 64_000
+            )
+        }
+    }
+
+    @Test("Card image resume requires a mapfile and remaining destination space")
+    func cardImageResumeRequirements() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DataRevivalResumeRequirements-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let source = try #require(makeStorageDevice(bsdName: "disk7", byteCount: 64_000))
+        let image = root.appendingPathComponent("camera.img")
+        let initialPlan = try CardImagingPlan.prepare(
+            sourceDevice: source,
+            imageURL: image,
+            destinationWholeDiskBSDName: "disk2",
+            availableCapacity: 128_000
+        )
+        try Data(repeating: 0, count: 16_000).write(to: image)
+        try JSONEncoder().encode(initialPlan.resumeRecord).write(to: initialPlan.resumeRecordURL)
+
+        #expect(throws: CardImagingError.resumeFilesMissing) {
+            try CardImagingPlan.prepareResume(
+                sourceDevice: source,
+                imageURL: image,
+                destinationWholeDiskBSDName: "disk2",
+                availableCapacity: 48_000
+            )
+        }
+
+        try Data("map".utf8).write(to: initialPlan.mapURL)
+        let attributes = try FileManager.default.attributesOfItem(atPath: image.path)
+        let allocated = min(
+            (attributes[.systemSize] as? NSNumber)?.int64Value ?? 0,
+            source.byteCount
+        )
+        let required = source.byteCount - allocated
+        #expect(throws: CardImagingError.insufficientSpace(required: required, available: required - 1)) {
+            try CardImagingPlan.prepareResume(
+                sourceDevice: source,
+                imageURL: image,
+                destinationWholeDiskBSDName: "disk2",
+                availableCapacity: required - 1
+            )
+        }
+    }
+
     @Test("PhotoRec receives paths as separate arguments")
     func commandPreservesPathsWithSpaces() {
         let session = RecoverySession(
