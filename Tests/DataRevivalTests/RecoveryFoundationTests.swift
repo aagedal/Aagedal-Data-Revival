@@ -271,6 +271,76 @@ struct RecoveryFoundationTests {
         #expect(command.sourceByteCount == source.byteCount)
     }
 
+    @Test("Card imaging revalidates identity around a non-forced whole-disk unmount")
+    func cardImagingSourcePreparation() async throws {
+        let source = try #require(makeStorageDevice(
+            bsdName: "disk7",
+            byteCount: 64_000,
+            guid: Data([1, 2, 3, 4])
+        ))
+        let lifecycle = RecordingDiskLifecycleController()
+        let resolver = DeviceResolutionSequence([source, source])
+        let coordinator = CardImagingSourceCoordinator(
+            lifecycle: lifecycle,
+            resolveDevice: { resolver.next(bsdName: $0) }
+        )
+        let plan = CardImagingPlan(
+            sourceDevice: source,
+            imageURL: URL(fileURLWithPath: "/tmp/camera.img"),
+            mapURL: URL(fileURLWithPath: "/tmp/camera.img.map"),
+            runnerLogURL: URL(fileURLWithPath: "/tmp/camera.img.ddrescue.log"),
+            resumeRecordURL: URL(fileURLWithPath: "/tmp/camera.img.datarevival.json"),
+            resumeRecord: CardImagingResumeRecord(source: .init(device: source)),
+            mapSnapshot: nil,
+            mode: .create
+        )
+
+        let validated = try await coordinator.prepareForImaging(plan: plan)
+
+        #expect(validated == source)
+        #expect(resolver.resolutionCount == 2)
+        #expect(await lifecycle.operations == [.unmount])
+
+        try await coordinator.finishImaging(plan: plan, action: .remount)
+        try await coordinator.finishImaging(plan: plan, action: .eject)
+        #expect(await lifecycle.operations == [.unmount, .mount, .eject])
+    }
+
+    @Test("A changed source after unmount is rejected and remounted")
+    func cardImagingRejectsPostUnmountReplacement() async throws {
+        let selected = try #require(makeStorageDevice(
+            bsdName: "disk7",
+            byteCount: 64_000,
+            guid: Data([1, 2, 3, 4])
+        ))
+        let replacement = try #require(makeStorageDevice(
+            bsdName: "disk7",
+            byteCount: 64_000,
+            guid: Data([9, 8, 7, 6])
+        ))
+        let lifecycle = RecordingDiskLifecycleController()
+        let resolver = DeviceResolutionSequence([selected, replacement])
+        let coordinator = CardImagingSourceCoordinator(
+            lifecycle: lifecycle,
+            resolveDevice: { resolver.next(bsdName: $0) }
+        )
+        let plan = CardImagingPlan(
+            sourceDevice: selected,
+            imageURL: URL(fileURLWithPath: "/tmp/camera.img"),
+            mapURL: URL(fileURLWithPath: "/tmp/camera.img.map"),
+            runnerLogURL: URL(fileURLWithPath: "/tmp/camera.img.ddrescue.log"),
+            resumeRecordURL: URL(fileURLWithPath: "/tmp/camera.img.datarevival.json"),
+            resumeRecord: CardImagingResumeRecord(source: .init(device: selected)),
+            mapSnapshot: nil,
+            mode: .create
+        )
+
+        await #expect(throws: CardImagingError.sourceIdentityChanged) {
+            try await coordinator.prepareForImaging(plan: plan)
+        }
+        #expect(await lifecycle.operations == [.unmount, .mount])
+    }
+
     @Test("GNU ddrescue runner invokes a process without a shell")
     func ddrescueRunnerExecutesProcess() async throws {
         let root = FileManager.default.temporaryDirectory
@@ -909,6 +979,44 @@ private actor DDRescueProgressRecorder {
 
     func append(_ snapshot: DDRescueMapSnapshot) {
         snapshots.append(snapshot)
+    }
+}
+
+private actor RecordingDiskLifecycleController: DiskLifecycleControlling {
+    private(set) var operations: [DiskLifecycleOperation] = []
+
+    func unmountWholeDisk(bsdName: String) {
+        operations.append(.unmount)
+    }
+
+    func mountWholeDisk(bsdName: String) {
+        operations.append(.mount)
+    }
+
+    func ejectWholeDisk(bsdName: String) {
+        operations.append(.eject)
+    }
+}
+
+private final class DeviceResolutionSequence: @unchecked Sendable {
+    private let lock = NSLock()
+    private var devices: [StorageDevice?]
+    private var count = 0
+
+    var resolutionCount: Int {
+        lock.withLock { count }
+    }
+
+    init(_ devices: [StorageDevice?]) {
+        self.devices = devices
+    }
+
+    func next(bsdName: String) -> StorageDevice? {
+        lock.withLock {
+            count += 1
+            guard !devices.isEmpty else { return nil }
+            return devices.removeFirst()
+        }
     }
 }
 

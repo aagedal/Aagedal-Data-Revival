@@ -1,5 +1,26 @@
 import Foundation
 
+enum RecoveryVolumeCapacity {
+    /// `volumeAvailableCapacityForImportantUsage` can report zero for writable
+    /// temporary or externally managed volumes even when ordinary free-space
+    /// accounting is available. Prefer it when positive, then fall back to the
+    /// conservative non-purgeable capacity rather than treating the value as a
+    /// genuinely full disk.
+    static func available(at url: URL) throws -> Int64? {
+        let values = try url.resourceValues(forKeys: [
+            .volumeAvailableCapacityForImportantUsageKey,
+            .volumeAvailableCapacityKey
+        ])
+        if let important = values.volumeAvailableCapacityForImportantUsage, important > 0 {
+            return important
+        }
+        if let ordinary = values.volumeAvailableCapacity, ordinary >= 0 {
+            return Int64(ordinary)
+        }
+        return values.volumeAvailableCapacityForImportantUsage
+    }
+}
+
 struct RecoveryStorageEstimate: Sendable, Equatable {
     let sourceByteCount: Int64
 

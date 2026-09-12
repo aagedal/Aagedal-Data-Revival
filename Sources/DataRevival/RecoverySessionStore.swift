@@ -182,9 +182,7 @@ actor RecoverySessionStore {
             throw StoreError.sourceDestinationCollision
         }
 
-        let availableCapacity = try destination.resourceValues(
-            forKeys: [.volumeAvailableCapacityForImportantUsageKey]
-        ).volumeAvailableCapacityForImportantUsage
+        let availableCapacity = try RecoveryVolumeCapacity.available(at: destination)
         try RecoveryStorageEstimate(
             sourceByteCount: Int64(sourceValues.fileSize ?? 0)
         ).validateRecoveryOutputCapacity(availableCapacity)

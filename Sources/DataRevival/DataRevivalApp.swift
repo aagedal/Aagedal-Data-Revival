@@ -529,7 +529,7 @@ private struct RecoveryView: View {
                             }
                             Button("Start imaging") {}
                                 .disabled(true)
-                                .help("A narrowly scoped privileged helper and safe unmount flow are still required before raw-device imaging can start.")
+                                .help("The privileged helper must be installed and connected before raw-device imaging can start.")
                         }
                     }
                     .padding(18)
@@ -630,9 +630,7 @@ private struct RecoveryView: View {
             let destinationDisk = try DiskIdentityResolver.wholeDiskBSDName(
                 containing: destinationDirectory
             )
-            let capacity = try destinationDirectory.resourceValues(
-                forKeys: [.volumeAvailableCapacityForImportantUsageKey]
-            ).volumeAvailableCapacityForImportantUsage
+            let capacity = try RecoveryVolumeCapacity.available(at: destinationDirectory)
             let plan = try CardImagingPlan.prepare(
                 sourceDevice: device,
                 imageURL: imageURL,
@@ -666,9 +664,7 @@ private struct RecoveryView: View {
             let destinationDisk = try DiskIdentityResolver.wholeDiskBSDName(
                 containing: destinationDirectory
             )
-            let capacity = try destinationDirectory.resourceValues(
-                forKeys: [.volumeAvailableCapacityForImportantUsageKey]
-            ).volumeAvailableCapacityForImportantUsage
+            let capacity = try RecoveryVolumeCapacity.available(at: destinationDirectory)
             let plan = try CardImagingPlan.prepareResume(
                 sourceDevice: device,
                 imageURL: imageURL,
