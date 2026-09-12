@@ -1,5 +1,8 @@
 import Foundation
+import CoreGraphics
+import ImageIO
 import Testing
+import UniformTypeIdentifiers
 @testable import DataRevival
 
 @Suite("Recovery foundation")
@@ -86,6 +89,41 @@ struct RecoveryFoundationTests {
         #expect(manifest.recoveredFiles.count == 1)
     }
 
+    @Test("Opening an older session validates files without changing their identity")
+    func refreshRecoveredFiles() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DataRevivalRefresh-\(UUID().uuidString)", isDirectory: true)
+        let source = root.appendingPathComponent("camera.dd")
+        let destination = root.appendingPathComponent("output", isDirectory: true)
+        let catalog = root.appendingPathComponent("catalog", isDirectory: true)
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+        try Data([0x00]).write(to: source)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let store = RecoverySessionStore(catalogDirectory: catalog)
+        var session = try await store.createSession(sourceImage: source, destinationRoot: destination)
+        let recoveredDirectory = session.sessionDirectoryURL.appendingPathComponent("recovered.1", isDirectory: true)
+        try FileManager.default.createDirectory(at: recoveredDirectory, withIntermediateDirectories: true)
+        let recoveredURL = recoveredDirectory.appendingPathComponent("photo.jpg")
+        try writeTestJPEG(to: recoveredURL)
+        let originalID = UUID()
+        session.status = .completed
+        session.recoveredFiles = [RecoveredFile(
+            id: originalID,
+            path: recoveredURL.path,
+            byteCount: Int64((try Data(contentsOf: recoveredURL)).count),
+            validationStatus: .notChecked
+        )]
+        try await store.save(session)
+
+        let refreshed = try await store.refreshRecoveredFiles(for: session.id)
+        #expect(refreshed.recoveredFiles.first?.id == originalID)
+        #expect(refreshed.recoveredFiles.first?.validationStatus == .readable)
+
+        let reloaded = try await RecoverySessionStore(catalogDirectory: catalog).loadAll()
+        #expect(reloaded.first?.recoveredFiles.first?.validationStatus == .readable)
+    }
+
     @Test("Recovered files are found only under PhotoRec output folders")
     func collectRecoveredFiles() throws {
         let root = FileManager.default.temporaryDirectory
@@ -118,6 +156,89 @@ struct RecoveryFoundationTests {
 
         #expect(files.isEmpty)
         #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("runner.log").path))
+    }
+
+    @Test("JPEG validation distinguishes a decoded image from truncated data")
+    func jpegValidation() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DataRevivalValidation-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let completeURL = root.appendingPathComponent("complete.jpg")
+        try writeTestJPEG(to: completeURL)
+        let complete = RecoveredFile(
+            id: UUID(),
+            path: completeURL.path,
+            byteCount: Int64((try Data(contentsOf: completeURL)).count),
+            validationStatus: .notChecked
+        )
+
+        let truncatedURL = root.appendingPathComponent("truncated.jpg")
+        try Data([0xFF, 0xD8, 0xFF, 0xE0]).write(to: truncatedURL)
+        let truncated = RecoveredFile(
+            id: UUID(),
+            path: truncatedURL.path,
+            byteCount: 4,
+            validationStatus: .notChecked
+        )
+
+        #expect(RecoveredFileValidator.validate(complete).validationStatus == .readable)
+        #expect(RecoveredFileValidator.validate(truncated).validationStatus == .possiblyPartial)
+    }
+
+    @Test("Export keeps existing files and chooses a unique name")
+    func collisionSafeExport() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DataRevivalExport-\(UUID().uuidString)", isDirectory: true)
+        let sourceDirectory = root.appendingPathComponent("source", isDirectory: true)
+        let destination = root.appendingPathComponent("destination", isDirectory: true)
+        try FileManager.default.createDirectory(at: sourceDirectory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let source = sourceDirectory.appendingPathComponent("photo.jpg")
+        try Data([1, 2, 3]).write(to: source)
+        try Data([9]).write(to: destination.appendingPathComponent("photo.jpg"))
+        let file = RecoveredFile(
+            id: UUID(),
+            path: source.path,
+            byteCount: 3,
+            validationStatus: .readable
+        )
+
+        let exported = try RecoveryExporter.export([file], to: destination)
+        #expect(exported.first?.lastPathComponent == "photo 2.jpg")
+        #expect(try Data(contentsOf: destination.appendingPathComponent("photo.jpg")) == Data([9]))
+        #expect(try Data(contentsOf: #require(exported.first)) == Data([1, 2, 3]))
+    }
+
+    private func writeTestJPEG(to url: URL) throws {
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        let pixels: [UInt8] = [20, 120, 220, 255]
+        let data = Data(pixels)
+        let provider = try #require(CGDataProvider(data: data as CFData))
+        let image = try #require(CGImage(
+            width: 1,
+            height: 1,
+            bitsPerComponent: 8,
+            bitsPerPixel: 32,
+            bytesPerRow: 4,
+            space: colorSpace,
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.last.rawValue),
+            provider: provider,
+            decode: nil,
+            shouldInterpolate: false,
+            intent: .defaultIntent
+        ))
+        let destination = try #require(CGImageDestinationCreateWithURL(
+            url as CFURL,
+            UTType.jpeg.identifier as CFString,
+            1,
+            nil
+        ))
+        CGImageDestinationAddImage(destination, image, nil)
+        #expect(CGImageDestinationFinalize(destination))
     }
 }
 

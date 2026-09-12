@@ -5,6 +5,7 @@ actor RecoverySessionStore {
         case sourceIsNotAFile
         case destinationIsNotDirectory
         case sourceDestinationCollision
+        case sessionNotFound
 
         var errorDescription: String? {
             switch self {
@@ -14,6 +15,8 @@ actor RecoverySessionStore {
                 "Choose a writable destination folder."
             case .sourceDestinationCollision:
                 "The recovery output cannot replace or be stored inside the source image."
+            case .sessionNotFound:
+                "The selected recovery session is no longer in the session catalog."
             }
         }
     }
@@ -58,10 +61,12 @@ actor RecoverySessionStore {
             session.status = .interrupted
             session.updatedAt = .now
             session.failureMessage = "The app stopped before this scan finished. Partial output was preserved."
-            session.recoveredFiles = (try? PhotoRecRunner.collectRecoveredFiles(
+            if let files = try? PhotoRecRunner.collectRecoveredFiles(
                 in: session.sessionDirectoryURL,
                 fileManager: fileManager
-            )) ?? session.recoveredFiles
+            ) {
+                session.recoveredFiles = RecoveredFileValidator.validate(files)
+            }
             catalog[index] = session
             changedSessions.append(session)
         }
@@ -82,6 +87,38 @@ actor RecoverySessionStore {
             options: .atomic
         )
         return catalog.sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    func refreshRecoveredFiles(for id: RecoverySession.ID) throws -> RecoverySession {
+        let catalog = try loadAll()
+        guard var session = catalog.first(where: { $0.id == id }) else {
+            throw StoreError.sessionNotFound
+        }
+
+        let existingByPath = Dictionary(
+            uniqueKeysWithValues: session.recoveredFiles.map { ($0.url.standardizedFileURL.path, $0) }
+        )
+        let collected = try PhotoRecRunner.collectRecoveredFiles(
+            in: session.sessionDirectoryURL,
+            fileManager: fileManager
+        )
+        let stableFiles = collected.map { file in
+            guard let existing = existingByPath[file.url.standardizedFileURL.path] else { return file }
+            return RecoveredFile(
+                id: existing.id,
+                path: file.path,
+                byteCount: file.byteCount,
+                validationStatus: existing.validationStatus
+            )
+        }
+        let validated = RecoveredFileValidator.validate(stableFiles)
+
+        if validated != session.recoveredFiles {
+            session.recoveredFiles = validated
+            session.updatedAt = .now
+            try save(session)
+        }
+        return session
     }
 
     func createSession(sourceImage: URL, destinationRoot: URL) throws -> RecoverySession {

@@ -61,7 +61,7 @@ final class RecoveryViewModel: ObservableObject {
                 if var cancelled = session {
                     cancelled.status = .cancelled
                     cancelled.updatedAt = .now
-                    cancelled.recoveredFiles = collectPartialFiles(for: cancelled)
+                    cancelled.recoveredFiles = await collectPartialFiles(for: cancelled)
                     try? await store.save(cancelled)
                     activeSession = cancelled
                     recoveredFiles = cancelled.recoveredFiles
@@ -71,7 +71,7 @@ final class RecoveryViewModel: ObservableObject {
                     failed.status = .failed
                     failed.updatedAt = .now
                     failed.failureMessage = error.localizedDescription
-                    failed.recoveredFiles = collectPartialFiles(for: failed)
+                    failed.recoveredFiles = await collectPartialFiles(for: failed)
                     try? await store.save(failed)
                     activeSession = failed
                     recoveredFiles = failed.recoveredFiles
@@ -101,10 +101,33 @@ final class RecoveryViewModel: ObservableObject {
         guard !isScanning, let session = sessions.first(where: { $0.id == id }) else { return }
         activeSession = session
         recoveredFiles = session.recoveredFiles
+
+        Task {
+            do {
+                let refreshed = try await store.refreshRecoveredFiles(for: id)
+                guard activeSession?.id == id, !isScanning else { return }
+                activeSession = refreshed
+                recoveredFiles = refreshed.recoveredFiles
+                sessions = try await store.loadAll()
+            } catch {
+                errorMessage = "The saved session could not be refreshed: \(error.localizedDescription)"
+            }
+        }
     }
 
-    private func collectPartialFiles(for session: RecoverySession) -> [RecoveredFile] {
-        (try? PhotoRecRunner.collectRecoveredFiles(in: session.sessionDirectoryURL))
-            ?? session.recoveredFiles
+    func exportFiles(ids: Set<RecoveredFile.ID>, to destinationDirectory: URL) async throws -> [URL] {
+        let files = recoveredFiles.filter { ids.contains($0.id) }
+        return try await Task.detached {
+            try RecoveryExporter.export(files, to: destinationDirectory)
+        }.value
+    }
+
+    private func collectPartialFiles(for session: RecoverySession) async -> [RecoveredFile] {
+        await Task.detached {
+            guard let files = try? PhotoRecRunner.collectRecoveredFiles(in: session.sessionDirectoryURL) else {
+                return session.recoveredFiles
+            }
+            return RecoveredFileValidator.validate(files)
+        }.value
     }
 }

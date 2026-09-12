@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import QuickLookUI
 import UniformTypeIdentifiers
 
 @main
@@ -52,11 +53,12 @@ private struct RecoveryView: View {
     @State private var imageURL: URL?
     @State private var showingDemo = false
     @State private var selection: Int?
-    @State private var recoveredSelection: UUID?
+    @State private var recoveredSelection: Set<UUID> = []
     @State private var sessionSelection: UUID?
     @State private var filter = "All files"
     @State private var query = ""
     @State private var issue: String?
+    @State private var exportConfirmation: String?
 
     private var files: [SampleFile] {
         SampleFile.examples.filter {
@@ -121,6 +123,14 @@ private struct RecoveryView: View {
                 recovery.errorMessage = nil
             }
         } message: { Text(issue ?? recovery.errorMessage ?? "Unknown error") }
+        .alert("Export complete", isPresented: Binding(
+            get: { exportConfirmation != nil },
+            set: { if !$0 { exportConfirmation = nil } }
+        )) {
+            Button("OK") { exportConfirmation = nil }
+        } message: {
+            Text(exportConfirmation ?? "The selected files were exported.")
+        }
     }
 
     private var recoveryContent: some View {
@@ -233,7 +243,7 @@ private struct RecoveryView: View {
                     Spacer()
                     Button("Choose another image") {
                         recovery.dismissActiveSession()
-                        recoveredSelection = nil
+                        recoveredSelection.removeAll()
                     }
                 }
 
@@ -244,6 +254,16 @@ private struct RecoveryView: View {
                         description: Text(session.failureMessage ?? "The session folder and process logs have been preserved.")
                     )
                 } else {
+                    HStack {
+                        Text(recoveredSelection.isEmpty
+                             ? "Select files to preview or export"
+                             : "\(recoveredSelection.count) selected")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Export Selected…", action: chooseExportDestination)
+                            .disabled(recoveredSelection.isEmpty)
+                    }
                     Table(recovery.recoveredFiles, selection: $recoveredSelection) {
                         TableColumn("Name") { file in
                             Label(file.name, systemImage: "photo")
@@ -252,7 +272,11 @@ private struct RecoveryView: View {
                         TableColumn("Size") { file in Text(file.byteCount.formatted(.byteCount(style: .file))) }.width(90)
                         TableColumn("Validation") { file in Text(validationLabel(file.validationStatus)) }
                     }
-                    Text("Found files have not been fully validated yet. A readable header does not prove that an entire photo is intact.")
+                    if recoveredSelection.count == 1,
+                       let file = recovery.recoveredFiles.first(where: { recoveredSelection.contains($0.id) }) {
+                        recoveredFileInspector(file)
+                    }
+                    Text("Basic validation decodes each JPEG and checks for an end marker. Even a readable result may contain localized image damage.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -289,7 +313,7 @@ private struct RecoveryView: View {
                 .onChange(of: sessionSelection) { _, id in
                     guard let id else { return }
                     recovery.openSession(id: id)
-                    recoveredSelection = nil
+                    recoveredSelection.removeAll()
                     workspace = .recover
                     sessionSelection = nil
                 }
@@ -379,6 +403,48 @@ private struct RecoveryView: View {
         )
     }
 
+    private func chooseExportDestination() {
+        guard !recoveredSelection.isEmpty else { return }
+        let panel = NSOpenPanel()
+        panel.title = "Export recovered files"
+        panel.message = "Choose a folder for the selected files. Existing files will not be overwritten."
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let destination = panel.url else { return }
+
+        let selectedIDs = recoveredSelection
+        Task {
+            do {
+                let exported = try await recovery.exportFiles(ids: selectedIDs, to: destination)
+                exportConfirmation = "Exported \(exported.count) file\(exported.count == 1 ? "" : "s") to \(destination.lastPathComponent)."
+            } catch {
+                issue = error.localizedDescription
+            }
+        }
+    }
+
+    private func recoveredFileInspector(_ file: RecoveredFile) -> some View {
+        HStack(spacing: 18) {
+            QuickLookFilePreview(url: file.url)
+                .frame(width: 220, height: 150)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+            VStack(alignment: .leading, spacing: 7) {
+                Text(file.name).font(.headline)
+                Text(file.byteCount.formatted(.byteCount(style: .file)))
+                Label(validationLabel(file.validationStatus), systemImage: validationSymbol(file.validationStatus))
+                    .foregroundStyle(file.validationStatus == .readable ? .green : .orange)
+                Text("Readable means the image decoded and contained an end marker. It does not guarantee that every pixel is undamaged.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(14)
+        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
+    }
+
     private func liveSessionSummary(_ session: RecoverySession) -> String {
         switch session.status {
         case .ready: "Ready to scan"
@@ -404,5 +470,29 @@ private struct RecoveryView: View {
         case .readable: "Readable"
         case .possiblyPartial: "Possibly partial"
         }
+    }
+
+    private func validationSymbol(_ status: RecoveredFile.ValidationStatus) -> String {
+        switch status {
+        case .notChecked: "questionmark.circle"
+        case .readable: "checkmark.circle.fill"
+        case .possiblyPartial: "exclamationmark.triangle.fill"
+        }
+    }
+}
+
+private struct QuickLookFilePreview: NSViewRepresentable {
+    let url: URL
+
+    func makeNSView(context: Context) -> QLPreviewView {
+        let preview = QLPreviewView(frame: .zero, style: .normal)!
+        preview.autostarts = true
+        preview.previewItem = url as NSURL
+        return preview
+    }
+
+    func updateNSView(_ preview: QLPreviewView, context: Context) {
+        preview.previewItem = url as NSURL
+        preview.refreshPreviewItem()
     }
 }

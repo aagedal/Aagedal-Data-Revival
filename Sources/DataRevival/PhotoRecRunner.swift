@@ -100,7 +100,8 @@ final class PhotoRecRunner: @unchecked Sendable {
 
         try Task.checkCancellation()
         guard status == 0 else { throw RunnerError.unsuccessfulExit(status) }
-        return try Self.collectRecoveredFiles(in: command.currentDirectoryURL)
+        let files = try Self.collectRecoveredFiles(in: command.currentDirectoryURL)
+        return RecoveredFileValidator.validate(files)
     }
 
     func cancel() {
