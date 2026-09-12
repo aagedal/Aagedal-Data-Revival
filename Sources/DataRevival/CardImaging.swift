@@ -12,6 +12,7 @@ struct CardImagingPlan: Sendable, Equatable {
     let runnerLogURL: URL
     let resumeRecordURL: URL
     let resumeRecord: CardImagingResumeRecord
+    let mapSnapshot: DDRescueMapSnapshot?
     let mode: Mode
 
     var sourceDeviceURL: URL {
@@ -58,6 +59,7 @@ struct CardImagingPlan: Sendable, Equatable {
             runnerLogURL: runnerLog,
             resumeRecordURL: resumeRecord,
             resumeRecord: CardImagingResumeRecord(source: .init(device: sourceDevice)),
+            mapSnapshot: nil,
             mode: .create
         )
     }
@@ -87,6 +89,16 @@ struct CardImagingPlan: Sendable, Equatable {
               let mapSizes = regularFileSizes(at: map, fileManager: fileManager),
               mapSizes.logical > 0 else {
             throw CardImagingError.resumeFilesMissing
+        }
+
+        let mapSnapshot: DDRescueMapSnapshot
+        do {
+            mapSnapshot = try DDRescueMapfile.parse(
+                Data(contentsOf: map),
+                expectedByteCount: sourceDevice.byteCount
+            )
+        } catch {
+            throw CardImagingError.resumeMapInvalid
         }
 
         let record: CardImagingResumeRecord
@@ -125,6 +137,7 @@ struct CardImagingPlan: Sendable, Equatable {
             runnerLogURL: runnerLog,
             resumeRecordURL: resumeRecordURL,
             resumeRecord: record,
+            mapSnapshot: mapSnapshot,
             mode: .resume
         )
     }
@@ -238,6 +251,7 @@ enum CardImagingError: LocalizedError, Equatable {
     case sourceDisconnected
     case sourceIdentityChanged
     case resumeFilesMissing
+    case resumeMapInvalid
     case resumeMetadataInvalid
     case resumeSourceMismatch
     case resumeImageTooLarge
@@ -264,6 +278,8 @@ enum CardImagingError: LocalizedError, Equatable {
             "The device at the selected path has changed. Select the recovery source again."
         case .resumeFilesMissing:
             "The existing card image and its nonempty ddrescue mapfile are both required to resume imaging."
+        case .resumeMapInvalid:
+            "The ddrescue mapfile is malformed or does not describe this entire recovery source."
         case .resumeMetadataInvalid:
             "The Data Revival resume record is missing, unreadable, or incompatible."
         case .resumeSourceMismatch:

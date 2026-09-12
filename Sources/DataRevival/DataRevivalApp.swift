@@ -640,9 +640,19 @@ private struct RecoveryView: View {
     private func imagingPlanSummary(_ plan: CardImagingPlan) -> String {
         switch plan.mode {
         case .create:
-            "\(plan.imageURL.lastPathComponent) passed the physical-device, collision, and free-space checks."
+            return "\(plan.imageURL.lastPathComponent) passed the physical-device, collision, and free-space checks."
         case .resume:
-            "\(plan.imageURL.lastPathComponent) matches this card and has a usable ddrescue mapfile and enough remaining space."
+            if let snapshot = plan.mapSnapshot {
+                let rescued = snapshot.rescuedByteCount.formatted(.byteCount(style: .file))
+                let percent = snapshot.rescuedFraction.formatted(
+                    .percent.precision(.fractionLength(0...1))
+                )
+                let badSectors = snapshot.badSectorByteCount == 0
+                    ? "no confirmed bad sectors"
+                    : "\(snapshot.badSectorByteCount.formatted(.byteCount(style: .file))) marked as bad sectors"
+                return "\(plan.imageURL.lastPathComponent) matches this card: \(rescued) rescued (\(percent)), \(badSectors), with enough space to resume."
+            }
+            return "\(plan.imageURL.lastPathComponent) matches this card and has enough space to resume."
         }
     }
 

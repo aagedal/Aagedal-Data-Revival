@@ -200,7 +200,7 @@ struct RecoveryFoundationTests {
             availableCapacity: 128_000
         )
         try Data(repeating: 0, count: 16_000).write(to: image)
-        try Data("# Mapfile. Created by GNU ddrescue\n".utf8).write(to: initialPlan.mapURL)
+        try Data(interruptedMapfile(byteCount: original.byteCount).utf8).write(to: initialPlan.mapURL)
         try JSONEncoder().encode(initialPlan.resumeRecord).write(to: initialPlan.resumeRecordURL)
 
         let reconnected = try #require(makeStorageDevice(
@@ -271,7 +271,17 @@ struct RecoveryFoundationTests {
             )
         }
 
-        try Data("map".utf8).write(to: initialPlan.mapURL)
+        try Data("not a ddrescue mapfile".utf8).write(to: initialPlan.mapURL)
+        #expect(throws: CardImagingError.resumeMapInvalid) {
+            try CardImagingPlan.prepareResume(
+                sourceDevice: source,
+                imageURL: image,
+                destinationWholeDiskBSDName: "disk2",
+                availableCapacity: 48_000
+            )
+        }
+
+        try Data(interruptedMapfile(byteCount: source.byteCount).utf8).write(to: initialPlan.mapURL)
         let attributes = try FileManager.default.attributesOfItem(atPath: image.path)
         let allocated = min(
             (attributes[.systemSize] as? NSNumber)?.int64Value ?? 0,
@@ -284,6 +294,46 @@ struct RecoveryFoundationTests {
                 imageURL: image,
                 destinationWholeDiskBSDName: "disk2",
                 availableCapacity: required - 1
+            )
+        }
+    }
+
+    @Test("ddrescue mapfile parsing validates its domain and summarizes block states")
+    func ddrescueMapfileValidation() throws {
+        let mapfile = """
+        # Mapfile. Created by GNU ddrescue
+        # current_pos current_status current_pass
+        0x00007000 ? 1
+        # pos size status
+        0x00000000 0x00004000 +
+        0x00004000 0x00001000 -
+        0x00005000 0x00002000 *
+        0x00007000 0x00009000 ?
+        """
+
+        let snapshot = try DDRescueMapfile.parse(
+            Data(mapfile.utf8),
+            expectedByteCount: 65_536
+        )
+        #expect(snapshot.currentPosition == 28_672)
+        #expect(snapshot.currentStatus == "?")
+        #expect(snapshot.currentPass == 1)
+        #expect(snapshot.rescuedByteCount == 16_384)
+        #expect(snapshot.badSectorByteCount == 4_096)
+        #expect(snapshot.pendingByteCount == 45_056)
+        #expect(snapshot.totalByteCount == 65_536)
+        #expect(snapshot.rescuedFraction == 0.25)
+        #expect(!snapshot.isFinished)
+
+        let mapfileWithGap = """
+        0 ? 1
+        0 1024 +
+        2048 63488 ?
+        """
+        #expect(throws: DDRescueMapfile.ParseError.invalid) {
+            try DDRescueMapfile.parse(
+                Data(mapfileWithGap.utf8),
+                expectedByteCount: 65_536
             )
         }
     }
@@ -542,6 +592,17 @@ struct RecoveryFoundationTests {
         }
         return StorageDevice(bsdName: bsdName, description: description)
     }
+}
+
+private func interruptedMapfile(byteCount: Int64) -> String {
+    let rescued = byteCount / 4
+    let pending = byteCount - rescued
+    return """
+    # Mapfile. Created by GNU ddrescue
+    \(rescued) ? 1
+    0 \(rescued) +
+    \(rescued) \(pending) ?
+    """
 }
 
 private extension JSONDecoder {
