@@ -7,10 +7,17 @@ enum RecoveredFileValidator {
     }
 
     static func validate(_ file: RecoveredFile) -> RecoveredFile {
-        guard ["jpg", "jpeg"].contains(file.url.pathExtension.lowercased()) else {
-            return file
+        switch file.kind {
+        case .jpeg:
+            validateJPEG(file)
+        case .rawOrTIFF:
+            validateRawOrTIFF(file)
+        case .other:
+            file
         }
+    }
 
+    private static func validateJPEG(_ file: RecoveredFile) -> RecoveredFile {
         var validated = file
         guard containsJPEGEndMarker(at: file.url),
               let source = CGImageSourceCreateWithURL(file.url as CFURL, nil),
@@ -26,6 +33,36 @@ enum RecoveredFileValidator {
         }
 
         validated.validationStatus = .readable
+        return validated
+    }
+
+    private static func validateRawOrTIFF(_ file: RecoveredFile) -> RecoveredFile {
+        // ImageIO support varies by macOS version and camera model. A format that
+        // this Mac cannot open remains explicitly unchecked rather than being
+        // mislabeled as damaged.
+        guard let source = CGImageSourceCreateWithURL(file.url as CFURL, nil) else {
+            return file
+        }
+
+        var validated = file
+        guard CGImageSourceGetCount(source) > 0 else {
+            validated.validationStatus = .possiblyPartial
+            return validated
+        }
+
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageIfAbsent: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: 1_024,
+            kCGImageSourceShouldCacheImmediately: false
+        ]
+        guard CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) != nil,
+              CGImageSourceGetStatusAtIndex(source, 0) == .statusComplete else {
+            validated.validationStatus = .possiblyPartial
+            return validated
+        }
+
+        validated.validationStatus = .previewReadable
         return validated
     }
 

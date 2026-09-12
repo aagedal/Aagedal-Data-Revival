@@ -682,6 +682,38 @@ struct RecoveryFoundationTests {
         #expect(RecoveredFileValidator.validate(truncated).validationStatus == .possiblyPartial)
     }
 
+    @Test("RAW and TIFF validation reports preview decoding without claiming full integrity")
+    func rawPreviewValidation() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DataRevivalRAWValidation-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        // A TIFF payload with a DNG extension exercises the TIFF-based RAW path
+        // without requiring a proprietary camera fixture in the test suite.
+        let rawURL = root.appendingPathComponent("complete.dng")
+        try writeTestImage(to: rawURL, type: .tiff)
+        let raw = RecoveredFile(
+            id: UUID(),
+            path: rawURL.path,
+            byteCount: Int64((try Data(contentsOf: rawURL)).count),
+            validationStatus: .notChecked
+        )
+
+        let corruptURL = root.appendingPathComponent("corrupt.raw")
+        try Data([0, 1, 2, 3]).write(to: corruptURL)
+        let corrupt = RecoveredFile(
+            id: UUID(),
+            path: corruptURL.path,
+            byteCount: 4,
+            validationStatus: .notChecked
+        )
+
+        #expect(raw.kind == .rawOrTIFF)
+        #expect(RecoveredFileValidator.validate(raw).validationStatus == .previewReadable)
+        #expect(RecoveredFileValidator.validate(corrupt).validationStatus == .possiblyPartial)
+    }
+
     @Test("Export keeps existing files and chooses a unique name")
     func collisionSafeExport() throws {
         let root = FileManager.default.temporaryDirectory
@@ -709,6 +741,10 @@ struct RecoveryFoundationTests {
     }
 
     private func writeTestJPEG(to url: URL) throws {
+        try writeTestImage(to: url, type: .jpeg)
+    }
+
+    private func writeTestImage(to url: URL, type: UTType) throws {
         let colorSpace = CGColorSpaceCreateDeviceRGB()
         let pixels: [UInt8] = [20, 120, 220, 255]
         let data = Data(pixels)
@@ -728,7 +764,7 @@ struct RecoveryFoundationTests {
         ))
         let destination = try #require(CGImageDestinationCreateWithURL(
             url as CFURL,
-            UTType.jpeg.identifier as CFString,
+            type.identifier as CFString,
             1,
             nil
         ))

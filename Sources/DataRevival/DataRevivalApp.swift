@@ -47,6 +47,28 @@ private struct SampleFile: Identifiable {
     ]
 }
 
+private enum RecoveredFileFilter: String, CaseIterable, Identifiable {
+    case all = "All files"
+    case jpeg = "JPEG"
+    case rawOrTIFF = "RAW / TIFF"
+    case needsReview = "Needs review"
+
+    var id: String { rawValue }
+
+    func includes(_ file: RecoveredFile) -> Bool {
+        switch self {
+        case .all:
+            true
+        case .jpeg:
+            file.kind == .jpeg
+        case .rawOrTIFF:
+            file.kind == .rawOrTIFF
+        case .needsReview:
+            file.validationStatus == .notChecked || file.validationStatus == .possiblyPartial
+        }
+    }
+}
+
 private struct RecoveryView: View {
     @StateObject private var recovery = RecoveryViewModel()
     @StateObject private var diskDevices = DiskDeviceMonitor()
@@ -56,6 +78,8 @@ private struct RecoveryView: View {
     @State private var showingDemo = false
     @State private var selection: Int?
     @State private var recoveredSelection: Set<UUID> = []
+    @State private var recoveredFilter: RecoveredFileFilter = .all
+    @State private var recoveredQuery = ""
     @State private var sessionSelection: UUID?
     @State private var filter = "All files"
     @State private var query = ""
@@ -68,6 +92,13 @@ private struct RecoveryView: View {
         SampleFile.examples.filter {
             (filter == "All files" || $0.kind == filter) &&
             (query.isEmpty || $0.name.localizedCaseInsensitiveContains(query))
+        }
+    }
+
+    private var visibleRecoveredFiles: [RecoveredFile] {
+        recovery.recoveredFiles.filter { file in
+            recoveredFilter.includes(file) &&
+            (recoveredQuery.isEmpty || file.name.localizedCaseInsensitiveContains(recoveredQuery))
         }
     }
 
@@ -305,6 +336,8 @@ private struct RecoveryView: View {
                     Button("Choose another image") {
                         recovery.dismissActiveSession()
                         recoveredSelection.removeAll()
+                        recoveredFilter = .all
+                        recoveredQuery = ""
                     }
                 }
 
@@ -318,18 +351,29 @@ private struct RecoveryView: View {
                     )
                 } else {
                     HStack {
-                        Text(recoveredSelection.isEmpty
-                             ? "Select files to preview or export"
-                             : "\(recoveredSelection.count) selected")
+                        Picker("Type", selection: $recoveredFilter) {
+                            ForEach(RecoveredFileFilter.allCases) { filter in
+                                Text(filter.rawValue).tag(filter)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(maxWidth: 420)
+                        Spacer()
+                        TextField("Search recovered files", text: $recoveredQuery)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 220)
+                    }
+                    HStack {
+                        Text(recoveredResultsSummary)
                             .font(.callout)
                             .foregroundStyle(.secondary)
                         Spacer()
                         Button("Export Selected…", action: chooseExportDestination)
                             .disabled(recoveredSelection.isEmpty)
                     }
-                    Table(recovery.recoveredFiles, selection: $recoveredSelection) {
+                    Table(visibleRecoveredFiles, selection: $recoveredSelection) {
                         TableColumn("Name") { file in
-                            Label(file.name, systemImage: "photo")
+                            Label(file.name, systemImage: file.kind.systemImage)
                         }.width(min: 220, ideal: 300)
                         TableColumn("Type") { file in Text(file.fileExtension) }.width(60)
                         TableColumn("Size") { file in Text(file.byteCount.formatted(.byteCount(style: .file))) }.width(90)
@@ -339,12 +383,14 @@ private struct RecoveryView: View {
                        let file = recovery.recoveredFiles.first(where: { recoveredSelection.contains($0.id) }) {
                         recoveredFileInspector(file)
                     }
-                    Text("Basic validation decodes each JPEG and checks for an end marker. Even a readable result may contain localized image damage.")
+                    Text("JPEG validation performs a full decode and checks for an end marker. RAW / TIFF validation checks whether macOS can decode a preview; unsupported formats remain not checked.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
         }
+        .onChange(of: recoveredFilter) { _, _ in recoveredSelection.removeAll() }
+        .onChange(of: recoveredQuery) { _, _ in recoveredSelection.removeAll() }
     }
 
     private var sessionsContent: some View {
@@ -377,6 +423,8 @@ private struct RecoveryView: View {
                     guard let id else { return }
                     recovery.openSession(id: id)
                     recoveredSelection.removeAll()
+                    recoveredFilter = .all
+                    recoveredQuery = ""
                     workspace = .recover
                     sessionSelection = nil
                 }
@@ -705,8 +753,11 @@ private struct RecoveryView: View {
                 Text(file.name).font(.headline)
                 Text(file.byteCount.formatted(.byteCount(style: .file)))
                 Label(validationLabel(file.validationStatus), systemImage: validationSymbol(file.validationStatus))
-                    .foregroundStyle(file.validationStatus == .readable ? .green : .orange)
-                Text("Readable means the image decoded and contained an end marker. It does not guarantee that every pixel is undamaged.")
+                    .foregroundStyle(
+                        file.validationStatus == .readable || file.validationStatus == .previewReadable
+                            ? .green : .orange
+                    )
+                Text(validationExplanation(for: file))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -758,6 +809,7 @@ private struct RecoveryView: View {
         switch status {
         case .notChecked: "Not checked"
         case .readable: "Readable"
+        case .previewReadable: "Preview readable"
         case .possiblyPartial: "Possibly partial"
         }
     }
@@ -766,7 +818,31 @@ private struct RecoveryView: View {
         switch status {
         case .notChecked: "questionmark.circle"
         case .readable: "checkmark.circle.fill"
+        case .previewReadable: "eye.circle.fill"
         case .possiblyPartial: "exclamationmark.triangle.fill"
+        }
+    }
+
+    private var recoveredResultsSummary: String {
+        if !recoveredSelection.isEmpty {
+            return "\(recoveredSelection.count) selected"
+        }
+        if visibleRecoveredFiles.count == recovery.recoveredFiles.count {
+            return "\(recovery.recoveredFiles.count) files"
+        }
+        return "\(visibleRecoveredFiles.count) of \(recovery.recoveredFiles.count) files"
+    }
+
+    private func validationExplanation(for file: RecoveredFile) -> String {
+        switch file.validationStatus {
+        case .readable:
+            "The JPEG decoded fully and contains an end marker. Localized image damage may still be present."
+        case .previewReadable:
+            "macOS decoded a preview from this RAW / TIFF file. This does not prove that the full sensor data is intact."
+        case .possiblyPartial:
+            "The file could not be decoded completely and may be truncated or damaged."
+        case .notChecked:
+            "This format could not be validated on this Mac. The file has been kept for review or export."
         }
     }
 

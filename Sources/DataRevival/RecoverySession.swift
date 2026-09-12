@@ -72,11 +72,32 @@ struct RecoverySession: Codable, Identifiable, Sendable, Equatable {
 }
 
 struct RecoveredFile: Codable, Identifiable, Sendable, Equatable {
+    enum Kind: String, Sendable {
+        case jpeg = "JPEG"
+        case rawOrTIFF = "RAW / TIFF"
+        case other = "Other"
+
+        var systemImage: String {
+            switch self {
+            case .jpeg: "photo"
+            case .rawOrTIFF: "camera.aperture"
+            case .other: "doc"
+            }
+        }
+    }
+
     enum ValidationStatus: String, Codable, Sendable {
         case notChecked
         case readable
+        case previewReadable
         case possiblyPartial
     }
+
+    static let rawOrTIFFExtensions: Set<String> = [
+        "3fr", "arw", "cr2", "cr3", "crw", "dcr", "dng", "erf", "fff",
+        "iiq", "k25", "kdc", "mef", "mos", "mrw", "nef", "nrw", "orf",
+        "pef", "raf", "raw", "rw2", "rwl", "sr2", "srf", "tif", "tiff", "x3f"
+    ]
 
     let id: UUID
     let path: String
@@ -86,4 +107,14 @@ struct RecoveredFile: Codable, Identifiable, Sendable, Equatable {
     var url: URL { URL(fileURLWithPath: path) }
     var name: String { url.lastPathComponent }
     var fileExtension: String { url.pathExtension.uppercased() }
+    var kind: Kind {
+        let fileExtension = url.pathExtension.lowercased()
+        if ["jpg", "jpeg"].contains(fileExtension) {
+            return .jpeg
+        }
+        if Self.rawOrTIFFExtensions.contains(fileExtension) {
+            return .rawOrTIFF
+        }
+        return .other
+    }
 }
