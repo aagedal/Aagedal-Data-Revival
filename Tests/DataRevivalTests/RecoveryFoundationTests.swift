@@ -1,5 +1,6 @@
 import Foundation
 import CoreGraphics
+import DiskArbitration
 import ImageIO
 import Testing
 import UniformTypeIdentifiers
@@ -7,6 +8,44 @@ import UniformTypeIdentifiers
 
 @Suite("Recovery foundation")
 struct RecoveryFoundationTests {
+    @Test("Disk discovery keeps only whole recovery-source devices")
+    func storageDeviceFiltering() throws {
+        let external = try #require(StorageDevice(
+            bsdName: "disk7",
+            description: [
+                kDADiskDescriptionMediaWholeKey as String: true,
+                kDADiskDescriptionMediaNameKey as String: "Camera Card",
+                kDADiskDescriptionDeviceModelKey as String: "Reader",
+                kDADiskDescriptionDeviceProtocolKey as String: "USB",
+                kDADiskDescriptionMediaSizeKey as String: NSNumber(value: 64_000_000_000),
+                kDADiskDescriptionDeviceInternalKey as String: false,
+                kDADiskDescriptionMediaRemovableKey as String: true,
+                kDADiskDescriptionMediaEjectableKey as String: true
+            ]
+        ))
+        #expect(external.isRecoverySourceCandidate)
+        #expect(external.displayName == "Camera Card")
+        #expect(external.devicePath == "/dev/disk7")
+        #expect(external.byteCount == 64_000_000_000)
+
+        let internalDisk = try #require(StorageDevice(
+            bsdName: "disk0",
+            description: [
+                kDADiskDescriptionMediaWholeKey as String: true,
+                kDADiskDescriptionDeviceModelKey as String: "Internal SSD",
+                kDADiskDescriptionDeviceInternalKey as String: true,
+                kDADiskDescriptionMediaRemovableKey as String: false,
+                kDADiskDescriptionMediaEjectableKey as String: false
+            ]
+        ))
+        #expect(!internalDisk.isRecoverySourceCandidate)
+
+        #expect(StorageDevice(
+            bsdName: "disk7s1",
+            description: [kDADiskDescriptionMediaWholeKey as String: false]
+        ) == nil)
+    }
+
     @Test("PhotoRec receives paths as separate arguments")
     func commandPreservesPathsWithSpaces() {
         let session = RecoverySession(

@@ -2,13 +2,13 @@
 
 A proposed open-source, native macOS app for recovering files from accidentally formatted camera cards.
 
-Status: runnable SwiftUI prototype with an experimental PhotoRec-backed JPEG scan for raw disk images. Physical-card imaging, file validation, RAW/video recovery, and production engine packaging are not connected yet.
+Status: runnable SwiftUI prototype with an experimental PhotoRec-backed JPEG scan for raw disk images. Physical-card imaging, RAW/video recovery, and production engine packaging are not connected yet.
 
 ## Run the prototype
 
 Requires macOS 14 or newer and Xcode with Swift 6 support. Open `Aagedal Data Revival.xcodeproj` and run the **Aagedal Data Revival** scheme. The Xcode project shares the implementation in `Sources/DataRevival` with the Swift package, which remains available for command-line builds and tests using `swift run DataRevival` and `swift test`.
 
-The prototype includes source selection, a raw-image file picker, persistent and reopenable session manifests, cancellation with partial-result retention, real JPEG result discovery and basic decode validation, Quick Look previews, collision-safe export, searchable sample results, and placeholders for disk tools. Scans interrupted by an app restart are reconciled on the next launch. The four sample files remain illustrative metadata, not actual recovered files.
+The prototype includes source selection, a raw-image file picker, persistent and reopenable session manifests, cancellation with partial-result retention, real JPEG result discovery and basic decode validation, Quick Look previews, collision-safe export, searchable sample results, and live read-only discovery of removable and external whole disks through Disk Arbitration. Scans interrupted by an app restart are reconciled on the next launch. The four sample files remain illustrative metadata, not actual recovered files.
 
 For development scans, install the Homebrew `testdisk` formula, which supplies the `photorec` executable:
 
@@ -18,7 +18,7 @@ brew install testdisk
 
 Select a nonempty raw image, choose **Recover JPEGs…**, and select a destination folder. The app creates an isolated `DataRevival-<UUID>` folder containing `session.json`, PhotoRec logs, and recovered output. PhotoRec is launched with an argument array and the source image is never opened for writing by the app.
 
-This is an integration spike, not a production recovery release. It currently performs a whole-image JPEG carve and reports files as unvalidated. Use disposable test images and copies of owned media.
+This is an integration spike, not a production recovery release. It currently performs a whole-image JPEG carve with basic decode and end-marker validation. Use disposable test images and copies of owned media.
 
 ## First release
 

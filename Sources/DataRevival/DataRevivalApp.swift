@@ -49,6 +49,7 @@ private struct SampleFile: Identifiable {
 
 private struct RecoveryView: View {
     @StateObject private var recovery = RecoveryViewModel()
+    @StateObject private var diskDevices = DiskDeviceMonitor()
     @State private var workspace: Workspace? = .recover
     @State private var imageURL: URL?
     @State private var showingDemo = false
@@ -59,6 +60,7 @@ private struct RecoveryView: View {
     @State private var query = ""
     @State private var issue: String?
     @State private var exportConfirmation: String?
+    @State private var diskSelection: String?
 
     private var files: [SampleFile] {
         SampleFile.examples.filter {
@@ -94,8 +96,7 @@ private struct RecoveryView: View {
                 switch workspace ?? .recover {
                 case .recover: recoveryContent
                 case .sessions: sessionsContent
-                case .tools:
-                    ContentUnavailableView("A safer starting point", systemImage: "externaldrive.badge.shield.checkmark", description: Text("Planned tools: create a card image, resume interrupted imaging, and inspect disk information."))
+                case .tools: diskToolsContent
                 }
             }
             .navigationTitle(workspace?.rawValue ?? "Recover files")
@@ -109,6 +110,14 @@ private struct RecoveryView: View {
         }
         .tint(.teal)
         .task { recovery.loadSessions() }
+        .onChange(of: workspace) { _, workspace in
+            if workspace == .tools {
+                diskDevices.start()
+            } else {
+                diskDevices.stop()
+                diskSelection = nil
+            }
+        }
         .alert("Recovery could not continue", isPresented: Binding(
             get: { issue != nil || recovery.errorMessage != nil },
             set: {
@@ -321,6 +330,85 @@ private struct RecoveryView: View {
         }
     }
 
+    private var diskToolsContent: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Connected removable media")
+                        .font(.system(size: 28, weight: .semibold))
+                    Text("Read-only discovery shows removable and external whole disks reported by macOS.")
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("Rescan", systemImage: "arrow.clockwise") {
+                    diskDevices.restart()
+                }
+            }
+
+            if let message = diskDevices.errorMessage {
+                ContentUnavailableView(
+                    "Disk discovery unavailable",
+                    systemImage: "externaldrive.badge.exclamationmark",
+                    description: Text(message)
+                )
+            } else if diskDevices.devices.isEmpty {
+                ContentUnavailableView(
+                    "No removable media found",
+                    systemImage: "sdcard",
+                    description: Text("Connect an SD, microSD, CFexpress, or external storage device, then choose Rescan.")
+                )
+            } else {
+                List(diskDevices.devices, selection: $diskSelection) { device in
+                    HStack(spacing: 14) {
+                        Image(systemName: "externaldrive.fill")
+                            .font(.title2)
+                            .foregroundStyle(.teal)
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(device.displayName).font(.headline)
+                            Text(deviceSummary(device))
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text(device.devicePath)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.vertical, 6)
+                    .tag(device.id)
+                }
+
+                if let id = diskSelection,
+                   let device = diskDevices.devices.first(where: { $0.id == id }) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Source protection", systemImage: "lock.shield.fill")
+                            .font(.headline)
+                            .foregroundStyle(.teal)
+                        Text("\(device.displayName) will be opened read-only. Imaging will require an unmounted card and a destination on a different physical device.")
+                            .foregroundStyle(.secondary)
+                        Button("Create card image…") {}
+                            .buttonStyle(.borderedProminent)
+                            .disabled(true)
+                            .help("Card imaging will be enabled after privileged access and destination-device checks are implemented.")
+                    }
+                    .padding(18)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
+                }
+            }
+
+            Label(
+                "Discovery does not mount, unmount, eject, or write to any device.",
+                systemImage: "checkmark.shield"
+            )
+            .font(.callout)
+            .foregroundStyle(.secondary)
+        }
+        .padding(32)
+        .onAppear { diskDevices.start() }
+        .onDisappear { diskDevices.stop() }
+    }
+
     private var results: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack {
@@ -478,6 +566,24 @@ private struct RecoveryView: View {
         case .readable: "checkmark.circle.fill"
         case .possiblyPartial: "exclamationmark.triangle.fill"
         }
+    }
+
+    private func deviceSummary(_ device: StorageDevice) -> String {
+        var parts: [String] = []
+        if device.byteCount > 0 {
+            parts.append(device.byteCount.formatted(.byteCount(style: .file)))
+        }
+        if let connection = device.connectionProtocol, !connection.isEmpty {
+            parts.append(connection)
+        }
+        if device.isRemovable {
+            parts.append("Removable")
+        } else if device.isEjectable {
+            parts.append("Ejectable")
+        } else {
+            parts.append("External")
+        }
+        return parts.joined(separator: " • ")
     }
 }
 
