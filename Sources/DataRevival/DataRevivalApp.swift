@@ -52,6 +52,7 @@ private struct RecoveryView: View {
     @StateObject private var diskDevices = DiskDeviceMonitor()
     @State private var workspace: Workspace? = .recover
     @State private var imageURL: URL?
+    @State private var scanProfile: RecoveryScanProfile = .photos
     @State private var showingDemo = false
     @State private var selection: Int?
     @State private var recoveredSelection: Set<UUID> = []
@@ -86,7 +87,7 @@ private struct RecoveryView: View {
                 }.listStyle(.sidebar)
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Early prototype", systemImage: "hammer").font(.callout.weight(.medium))
-                    Text("Explore sample files or run an experimental JPEG scan from a raw disk image.")
+                    Text("Explore sample files or run an experimental photo scan from a raw disk image.")
                         .font(.caption).foregroundStyle(.secondary)
                 }.padding(14).background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
                     .padding(12)
@@ -218,12 +219,25 @@ private struct RecoveryView: View {
                         Image(systemName: "doc").font(.title2).foregroundStyle(.teal)
                         VStack(alignment: .leading, spacing: 5) {
                             Text(imageURL.lastPathComponent).font(.headline)
-                            Text("Ready for an experimental read-only JPEG scan.").font(.callout).foregroundStyle(.secondary)
+                            Text("Ready for an experimental read-only photo scan.")
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
                         }
                         Spacer()
+                        Picker("File types", selection: $scanProfile) {
+                            ForEach(RecoveryScanProfile.allCases) { profile in
+                                Text(profile.displayName).tag(profile)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 190)
+                        .help(scanProfile.shortDescription)
                         HStack {
                             Button("Remove") { self.imageURL = nil }
-                            Button("Recover JPEGs…", action: chooseDestinationAndScan)
+                            Button(
+                                scanProfile == .jpeg ? "Recover JPEGs…" : "Recover Photos…",
+                                action: chooseDestinationAndScan
+                            )
                                 .buttonStyle(.borderedProminent)
                         }
                     }.padding(18).background(.quaternary.opacity(0.4), in: RoundedRectangle(cornerRadius: 12))
@@ -251,7 +265,10 @@ private struct RecoveryView: View {
                 VStack(spacing: 18) {
                     ProgressView().controlSize(.large)
                     Text("Scanning the disk image").font(.title2.weight(.semibold))
-                    Text("PhotoRec is looking for JPEG files. Recovered data is written directly to the session folder.")
+                    Text(
+                        "PhotoRec is looking for \(recovery.activeSession?.effectiveScanProfile.resultDescription ?? "photo files"). "
+                        + "Recovered data is written directly to the session folder."
+                    )
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: 520)
@@ -293,7 +310,9 @@ private struct RecoveryView: View {
 
                 if recovery.recoveredFiles.isEmpty {
                     ContentUnavailableView(
-                        session.status == .completed ? "No JPEG files found" : "No results available",
+                        session.status == .completed
+                            ? "No \(session.effectiveScanProfile.resultDescription) found"
+                            : "No results available",
                         systemImage: session.status == .completed ? "photo.badge.magnifyingglass" : "exclamationmark.triangle",
                         description: Text(session.failureMessage ?? "The session folder and process logs have been preserved.")
                     )
@@ -346,7 +365,7 @@ private struct RecoveryView: View {
                                 .font(.caption.weight(.medium))
                                 .foregroundStyle(sessionStatusColor(session.status))
                         }
-                        Text("\(session.recoveredFiles.count) files • \(session.updatedAt.formatted(date: .abbreviated, time: .shortened))")
+                        Text("\(session.effectiveScanProfile.displayName) • \(session.recoveredFiles.count) files • \(session.updatedAt.formatted(date: .abbreviated, time: .shortened))")
                             .font(.callout).foregroundStyle(.secondary)
                         Text(session.sessionDirectoryPath)
                             .font(.caption.monospaced()).foregroundStyle(.tertiary).lineLimit(1)
@@ -612,10 +631,11 @@ private struct RecoveryView: View {
         guard panel.runModal() == .OK, let destination = panel.url else { return }
 
         showingDemo = false
-        recovery.startJPEGScan(
+        recovery.startScan(
             sourceImage: imageURL,
             destinationRoot: destination,
-            executableURL: installation.executableURL
+            executableURL: installation.executableURL,
+            profile: scanProfile
         )
     }
 
@@ -700,7 +720,7 @@ private struct RecoveryView: View {
         switch session.status {
         case .ready: "Ready to scan"
         case .scanning: "Scanning \(session.sourceImageURL.lastPathComponent)"
-        case .completed: "\(session.recoveredFiles.count) JPEG files found in \(session.sourceImageURL.lastPathComponent)"
+        case .completed: "\(session.recoveredFiles.count) \(session.effectiveScanProfile.resultDescription) found in \(session.sourceImageURL.lastPathComponent)"
         case .cancelled: "The scan was cancelled. Partial output was preserved."
         case .interrupted: "The app stopped before the scan finished. Partial output was preserved."
         case .failed: session.failureMessage ?? "The scan failed."

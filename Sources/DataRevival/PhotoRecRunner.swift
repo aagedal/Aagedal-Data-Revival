@@ -47,17 +47,29 @@ struct PhotoRecCommand: Sendable, Equatable {
     let arguments: [String]
     let currentDirectoryURL: URL
 
-    static func jpegScan(executableURL: URL, session: RecoverySession) -> PhotoRecCommand {
-        PhotoRecCommand(
+    static func scan(
+        executableURL: URL,
+        session: RecoverySession,
+        profile: RecoveryScanProfile
+    ) -> PhotoRecCommand {
+        let fileOptions = profile.photoRecFileFamilies.flatMap { [$0, "enable"] }
+        let commandOptions = ["fileopt", "everything", "disable"]
+            + fileOptions
+            + ["wholespace", "search"]
+        return PhotoRecCommand(
             executableURL: executableURL,
             arguments: [
                 "/logname", session.logURL.path,
                 "/d", session.recoveredOutputBaseURL.path,
                 "/cmd", session.sourceImageURL.path,
-                "fileopt,everything,disable,jpg,enable,wholespace,search"
+                commandOptions.joined(separator: ",")
             ],
             currentDirectoryURL: session.sessionDirectoryURL
         )
+    }
+
+    static func jpegScan(executableURL: URL, session: RecoverySession) -> PhotoRecCommand {
+        scan(executableURL: executableURL, session: session, profile: .jpeg)
     }
 }
 

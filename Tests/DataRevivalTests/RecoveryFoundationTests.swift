@@ -444,6 +444,60 @@ struct RecoveryFoundationTests {
         #expect(command.arguments.last == "fileopt,everything,disable,jpg,enable,wholespace,search")
     }
 
+    @Test("Photo scan profile enables JPEG and common camera RAW families")
+    func photoScanProfileCommand() {
+        let session = RecoverySession(
+            id: UUID(),
+            createdAt: .now,
+            updatedAt: .now,
+            sourceImagePath: "/Volumes/Test Images/card.dd",
+            sessionDirectoryPath: "/Volumes/Recovery Drive/session",
+            status: .ready,
+            recoveredFiles: [],
+            failureMessage: nil,
+            scanProfile: .photos
+        )
+
+        let command = PhotoRecCommand.scan(
+            executableURL: URL(fileURLWithPath: "/opt/homebrew/bin/photorec"),
+            session: session,
+            profile: .photos
+        )
+
+        #expect(command.arguments.last == [
+            "fileopt,everything,disable",
+            "jpg,enable",
+            "tif,enable",
+            "crw,enable",
+            "orf,enable",
+            "raf,enable",
+            "raw,enable",
+            "rw2,enable",
+            "x3f,enable",
+            "wholespace,search"
+        ].joined(separator: ","))
+    }
+
+    @Test("Older session manifests default to the JPEG scan profile")
+    func legacySessionScanProfile() throws {
+        let session = RecoverySession(
+            id: UUID(),
+            createdAt: .now,
+            updatedAt: .now,
+            sourceImagePath: "/tmp/card.dd",
+            sessionDirectoryPath: "/tmp/session",
+            status: .completed,
+            recoveredFiles: [],
+            failureMessage: nil
+        )
+
+        let data = try JSONEncoder().encode(session)
+        let decoded = try JSONDecoder().decode(RecoverySession.self, from: data)
+
+        #expect(decoded.scanProfile == nil)
+        #expect(decoded.effectiveScanProfile == .jpeg)
+    }
+
     @Test("Sessions are written to their folder and catalog")
     func sessionRoundTrip() async throws {
         let temporaryRoot = FileManager.default.temporaryDirectory
@@ -457,6 +511,7 @@ struct RecoveryFoundationTests {
 
         let store = RecoverySessionStore(catalogDirectory: catalog)
         var session = try await store.createSession(sourceImage: source, destinationRoot: destination)
+        session.scanProfile = .photos
         session.status = .completed
         session.updatedAt = session.createdAt.addingTimeInterval(1)
         try await store.save(session)
@@ -465,6 +520,7 @@ struct RecoveryFoundationTests {
         #expect(reloaded.count == 1)
         #expect(reloaded.first?.id == session.id)
         #expect(reloaded.first?.status == .completed)
+        #expect(reloaded.first?.scanProfile == .photos)
         #expect(abs((reloaded.first?.updatedAt.timeIntervalSince1970 ?? 0) - session.updatedAt.timeIntervalSince1970) < 1)
         #expect(FileManager.default.fileExists(atPath: session.manifestURL.path))
     }

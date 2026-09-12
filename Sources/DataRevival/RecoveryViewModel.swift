@@ -28,7 +28,12 @@ final class RecoveryViewModel: ObservableObject {
         }
     }
 
-    func startJPEGScan(sourceImage: URL, destinationRoot: URL, executableURL: URL) {
+    func startScan(
+        sourceImage: URL,
+        destinationRoot: URL,
+        executableURL: URL,
+        profile: RecoveryScanProfile
+    ) {
         guard !isScanning else { return }
         isScanning = true
         recoveredFiles = []
@@ -42,6 +47,7 @@ final class RecoveryViewModel: ObservableObject {
                     sourceImage: sourceImage,
                     destinationRoot: destinationRoot
                 )
+                created.scanProfile = profile
                 created.status = .scanning
                 created.updatedAt = .now
                 try await store.save(created)
@@ -50,7 +56,11 @@ final class RecoveryViewModel: ObservableObject {
 
                 let runner = PhotoRecRunner()
                 self.runner = runner
-                let command = PhotoRecCommand.jpegScan(executableURL: executableURL, session: created)
+                let command = PhotoRecCommand.scan(
+                    executableURL: executableURL,
+                    session: created,
+                    profile: profile
+                )
                 let files = try await runner.recover(command: command) { progress in
                     await MainActor.run {
                         guard self.isScanning else { return }
