@@ -7,6 +7,7 @@ final class RecoveryViewModel: ObservableObject {
     @Published private(set) var activeSession: RecoverySession?
     @Published private(set) var recoveredFiles: [RecoveredFile] = []
     @Published private(set) var isScanning = false
+    @Published private(set) var scanProgress: RecoveryScanProgress?
     @Published var errorMessage: String?
 
     private let store: RecoverySessionStore
@@ -32,6 +33,7 @@ final class RecoveryViewModel: ObservableObject {
         isScanning = true
         recoveredFiles = []
         activeSession = nil
+        scanProgress = nil
 
         scanTask = Task {
             var session: RecoverySession?
@@ -49,7 +51,12 @@ final class RecoveryViewModel: ObservableObject {
                 let runner = PhotoRecRunner()
                 self.runner = runner
                 let command = PhotoRecCommand.jpegScan(executableURL: executableURL, session: created)
-                let files = try await runner.recover(command: command)
+                let files = try await runner.recover(command: command) { progress in
+                    await MainActor.run {
+                        guard self.isScanning else { return }
+                        self.scanProgress = progress
+                    }
+                }
 
                 created.status = .completed
                 created.updatedAt = .now
@@ -95,6 +102,7 @@ final class RecoveryViewModel: ObservableObject {
         guard !isScanning else { return }
         activeSession = nil
         recoveredFiles = []
+        scanProgress = nil
     }
 
     func openSession(id: RecoverySession.ID) {

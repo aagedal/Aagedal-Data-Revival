@@ -553,6 +553,32 @@ struct RecoveryFoundationTests {
         #expect(files.first?.byteCount == 3)
     }
 
+    @Test("Live scan progress counts only PhotoRec output files")
+    func liveScanProgress() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DataRevivalProgress-\(UUID().uuidString)", isDirectory: true)
+        let recovered = root.appendingPathComponent("recovered.1", isDirectory: true)
+        let unrelated = root.appendingPathComponent("other", isDirectory: true)
+        try FileManager.default.createDirectory(at: recovered, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: unrelated, withIntermediateDirectories: true)
+        try Data([1, 2, 3]).write(to: recovered.appendingPathComponent("f000001.jpg"))
+        try Data([4, 5]).write(to: recovered.appendingPathComponent("f000002.jpg"))
+        try Data([6, 7, 8, 9]).write(to: unrelated.appendingPathComponent("not-recovered.jpg"))
+        try Data([0]).write(to: root.appendingPathComponent("runner.log"))
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let startedAt = Date(timeIntervalSince1970: 100)
+        let progress = RecoveryScanProgress.snapshot(
+            in: root,
+            startedAt: startedAt,
+            now: Date(timeIntervalSince1970: 112.5)
+        )
+
+        #expect(progress.elapsedTime == 12.5)
+        #expect(progress.recoveredFileCount == 2)
+        #expect(progress.recoveredByteCount == 5)
+    }
+
     @Test("Runner handles a successful process without shell invocation")
     func runnerExecutesProcess() async throws {
         let root = FileManager.default.temporaryDirectory

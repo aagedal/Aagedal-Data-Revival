@@ -171,6 +171,22 @@ private struct RecoveryView: View {
         }.foregroundStyle(active ? Color.primary : Color.secondary).fixedSize()
     }
 
+    private func scanMetric(value: String, label: String) -> some View {
+        VStack(spacing: 3) {
+            Text(value).font(.headline.monospacedDigit())
+            Text(label).font(.caption).foregroundStyle(.secondary)
+        }
+        .frame(minWidth: 90)
+    }
+
+    private func formattedElapsedTime(_ interval: TimeInterval) -> String {
+        let seconds = max(0, Int(interval))
+        let hours = seconds / 3_600
+        let minutes = (seconds % 3_600) / 60
+        let remainingSeconds = seconds % 60
+        return String(format: "%02d:%02d:%02d", hours, minutes, remainingSeconds)
+    }
+
     private var source: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 26) {
@@ -239,6 +255,23 @@ private struct RecoveryView: View {
                         .multilineTextAlignment(.center)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: 520)
+                    if let progress = recovery.scanProgress {
+                        HStack(spacing: 24) {
+                            scanMetric(
+                                value: progress.recoveredFileCount.formatted(),
+                                label: "files found"
+                            )
+                            scanMetric(
+                                value: progress.recoveredByteCount.formatted(.byteCount(style: .file)),
+                                label: "written"
+                            )
+                            scanMetric(
+                                value: formattedElapsedTime(progress.elapsedTime),
+                                label: "elapsed"
+                            )
+                        }
+                        .padding(.vertical, 4)
+                    }
                     Button("Cancel scan") { recovery.cancelScan() }
                 }
                 .frame(maxWidth: .infinity)

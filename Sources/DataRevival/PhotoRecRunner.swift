@@ -1,5 +1,47 @@
 import Foundation
 
+struct RecoveryScanProgress: Sendable, Equatable {
+    let elapsedTime: TimeInterval
+    let recoveredFileCount: Int
+    let recoveredByteCount: Int64
+
+    static func snapshot(
+        in sessionDirectory: URL,
+        startedAt: Date,
+        now: Date = .now,
+        fileManager: FileManager = .default
+    ) -> RecoveryScanProgress {
+        let keys: Set<URLResourceKey> = [.isRegularFileKey, .fileSizeKey]
+        guard let enumerator = fileManager.enumerator(
+            at: sessionDirectory,
+            includingPropertiesForKeys: Array(keys),
+            options: [.skipsHiddenFiles]
+        ) else {
+            return RecoveryScanProgress(
+                elapsedTime: max(0, now.timeIntervalSince(startedAt)),
+                recoveredFileCount: 0,
+                recoveredByteCount: 0
+            )
+        }
+
+        var fileCount = 0
+        var byteCount: Int64 = 0
+        for case let url as URL in enumerator {
+            guard url.deletingLastPathComponent().lastPathComponent.hasPrefix("recovered."),
+                  let values = try? url.resourceValues(forKeys: keys),
+                  values.isRegularFile == true else { continue }
+            fileCount += 1
+            byteCount += Int64(values.fileSize ?? 0)
+        }
+
+        return RecoveryScanProgress(
+            elapsedTime: max(0, now.timeIntervalSince(startedAt)),
+            recoveredFileCount: fileCount,
+            recoveredByteCount: byteCount
+        )
+    }
+}
+
 struct PhotoRecCommand: Sendable, Equatable {
     let executableURL: URL
     let arguments: [String]
@@ -46,7 +88,10 @@ final class PhotoRecRunner: @unchecked Sendable {
     private let lock = NSLock()
     private var activeProcess: Process?
 
-    func recover(command: PhotoRecCommand) async throws -> [RecoveredFile] {
+    func recover(
+        command: PhotoRecCommand,
+        onProgress: (@Sendable (RecoveryScanProgress) async -> Void)? = nil
+    ) async throws -> [RecoveredFile] {
         let process = Process()
         process.executableURL = command.executableURL
         process.arguments = command.arguments
@@ -70,6 +115,31 @@ final class PhotoRecRunner: @unchecked Sendable {
             try? logHandle.close()
         }
 
+        let startedAt = Date.now
+        if let onProgress {
+            await onProgress(.snapshot(
+                in: command.currentDirectoryURL,
+                startedAt: startedAt
+            ))
+        }
+
+        let progressTask = Task {
+            guard let onProgress else { return }
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .seconds(1))
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled else { return }
+                await onProgress(.snapshot(
+                    in: command.currentDirectoryURL,
+                    startedAt: startedAt
+                ))
+            }
+        }
+        defer { progressTask.cancel() }
+
         let status = try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 process.terminationHandler = { finishedProcess in
@@ -88,6 +158,12 @@ final class PhotoRecRunner: @unchecked Sendable {
 
         try Task.checkCancellation()
         guard status == 0 else { throw RunnerError.unsuccessfulExit(status) }
+        if let onProgress {
+            await onProgress(.snapshot(
+                in: command.currentDirectoryURL,
+                startedAt: startedAt
+            ))
+        }
         let files = try Self.collectRecoveredFiles(in: command.currentDirectoryURL)
         return RecoveredFileValidator.validate(files)
     }
