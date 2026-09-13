@@ -79,9 +79,12 @@ Scripts/audit-app-bundle.sh "/path/to/Aagedal Data Revival.app"
 ```
 
 The audit fails when the app, imaging helper, or bundled native code is not arm64-only, a
-required engine is absent, is not executable, is not signed, or links to an
-absolute dependency outside macOS system locations. It also rejects external
-`LC_RPATH` entries, validates the LaunchDaemon/Mach-service identity, verifies every packaged engine artifact against the build
+required engine is absent, is not executable, is not signed with a Developer ID
+Application identity, lacks hardened runtime, carries a development or
+runtime-weakening entitlement, or links to an absolute
+dependency outside macOS system locations. It permits the system Swift runtime
+path but rejects other external `LC_RPATH` entries, validates the
+LaunchDaemon/Mach-service identity, verifies every packaged engine artifact against the build
 checksums, requires both corresponding source archives, and verifies the outer
 app's nested signature. `SHA256SUMS` retains the reproducible pre-sign engine
 digests; the audit validates shipped executable identity with code signatures

@@ -57,7 +57,7 @@ audit_dependencies() {
     while IFS= read -r rpath; do
         [[ -z "$rpath" ]] && continue
         case "$rpath" in
-            @executable_path/*|@loader_path/*)
+            /usr/lib/swift|@executable_path/*|@loader_path/*)
                 ;;
             *)
                 echo "error: $binary contains an external runtime search path: $rpath" >&2
@@ -68,6 +68,38 @@ audit_dependencies() {
         $1 == "cmd" && $2 == "LC_RPATH" { reading_rpath = 1; next }
         reading_rpath && $1 == "path" { print $2; reading_rpath = 0 }
     ')
+}
+
+audit_signature() {
+    local binary="$1"
+    local signature_details
+    local entitlements
+    local forbidden_entitlement
+
+    codesign --verify --strict --verbose=2 "$binary"
+    signature_details="$(codesign -dvv "$binary" 2>&1)"
+    if ! grep -q '^Authority=Developer ID Application:' <<< "$signature_details"; then
+        echo "error: distribution code is not signed with a Developer ID Application identity: $binary" >&2
+        exit 1
+    fi
+    if ! grep -Eq 'flags=.*\([^)]*runtime[^)]*\)' <<< "$signature_details"; then
+        echo "error: hardened runtime is not enabled: $binary" >&2
+        exit 1
+    fi
+
+    entitlements="$(codesign -d --entitlements - "$binary" 2>&1)"
+    for forbidden_entitlement in \
+        com.apple.security.get-task-allow \
+        com.apple.security.cs.allow-jit \
+        com.apple.security.cs.allow-unsigned-executable-memory \
+        com.apple.security.cs.disable-executable-page-protection \
+        com.apple.security.cs.disable-library-validation
+    do
+        if grep -Fq "$forbidden_entitlement" <<< "$entitlements"; then
+            echo "error: distribution code has forbidden entitlement $forbidden_entitlement: $binary" >&2
+            exit 1
+        fi
+    done
 }
 
 if [[ ! -x "$imaging_helper" ]]; then
@@ -91,7 +123,7 @@ fi
 
 audit_architecture "$imaging_helper"
 audit_dependencies "$imaging_helper"
-codesign --verify --strict --verbose=2 "$imaging_helper"
+audit_signature "$imaging_helper"
 
 for tool in "${required_tools[@]}"; do
     binary="$helpers/$tool"
@@ -102,7 +134,7 @@ for tool in "${required_tools[@]}"; do
 
     audit_architecture "$binary"
     audit_dependencies "$binary"
-    codesign --verify --strict --verbose=2 "$binary"
+    audit_signature "$binary"
 done
 
 if [[ ! -f "$engine_artifacts/RecoveryEngines.lock.json" || -L "$engine_artifacts/RecoveryEngines.lock.json" ]]; then
@@ -154,9 +186,10 @@ while IFS= read -r candidate; do
     if [[ "$(file "$candidate")" == *Mach-O* ]]; then
         audit_architecture "$candidate"
         audit_dependencies "$candidate"
-        codesign --verify --strict --verbose=2 "$candidate"
+        audit_signature "$candidate"
     fi
 done < <(find "$helpers" "$app/Contents/Frameworks" -type f 2>/dev/null || true)
 
 codesign --verify --deep --strict --verbose=2 "$app"
-echo "Bundle audit passed: the signed imaging helper, recovery engines, and checksum-verified distribution artifacts are complete."
+audit_signature "$app"
+echo "Bundle audit passed: hardened signed code, the imaging helper, recovery engines, and checksum-verified distribution artifacts are complete."

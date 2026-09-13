@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 1,
-  "suiteVersion": "1.0.0",
+  "schemaVersion": 2,
+  "suiteVersion": "1.1.0",
   "acceptance": {
     "minimumExactRecoveryRate": 1.0
   },
@@ -20,8 +20,12 @@
       "filesystem": "FAT32",
       "archivePath": "fixtures/fat32-quick-format-contiguous-jpeg.img.gz",
       "archiveSHA256": "9c4197e3f6835ed301662139a2574cfd43392116429f37f95e67955bf49ceb0c",
-      "expectedOriginalIDs": [
-        "synthetic-jpeg"
+      "classification": "byte-exact recovery",
+      "expectedRecoveries": [
+        {
+          "label": "intact synthetic JPEG",
+          "sha256": "ece6530f7391025fe807d9a375bb1d9e28f296b5d8f2e58fe7e4c847aa803120"
+        }
       ],
       "notes": "The JPEG was copied to a fresh FAT32 volume before a second FAT32 quick format."
     },
@@ -30,10 +34,86 @@
       "filesystem": "exFAT",
       "archivePath": "fixtures/exfat-quick-format-contiguous-jpeg.img.gz",
       "archiveSHA256": "041ceada15e759dbda4f84592d91de7bc4f092343929a09421a8da098123db93",
-      "expectedOriginalIDs": [
-        "synthetic-jpeg"
+      "classification": "byte-exact recovery",
+      "expectedRecoveries": [
+        {
+          "label": "intact synthetic JPEG",
+          "sha256": "ece6530f7391025fe807d9a375bb1d9e28f296b5d8f2e58fe7e4c847aa803120"
+        }
       ],
       "notes": "The JPEG was copied to a fresh exFAT volume before a second exFAT quick format."
+    },
+    {
+      "id": "raw-fragmented-jpeg",
+      "filesystem": "none (raw image)",
+      "archivePath": "fixtures/raw-fragmented-jpeg.img.gz",
+      "archiveSHA256": "caaa7d8684cfd01168311c5a709be86c0d09c33ece5a7e111003414e0795a4c6",
+      "classification": "known limitation: intact original not recovered",
+      "expectedRecoveries": [],
+      "forbiddenRecoveries": [
+        {
+          "label": "intact synthetic JPEG",
+          "sha256": "ece6530f7391025fe807d9a375bb1d9e28f296b5d8f2e58fe7e4c847aa803120"
+        }
+      ],
+      "minimumDistinctRecoveredPayloads": 1,
+      "notes": "The JPEG is split after byte 1024, with its second extent moved 3072 bytes later."
+    },
+    {
+      "id": "raw-truncated-jpeg",
+      "filesystem": "none (raw image)",
+      "archivePath": "fixtures/raw-truncated-jpeg.img.gz",
+      "archiveSHA256": "dd0cb1bec8861558680d9a0dbf537339f0e038fa3972d1e3d95a032ecbf3dc7f",
+      "classification": "known limitation: intact original not recovered",
+      "expectedRecoveries": [],
+      "forbiddenRecoveries": [
+        {
+          "label": "intact synthetic JPEG",
+          "sha256": "ece6530f7391025fe807d9a375bb1d9e28f296b5d8f2e58fe7e4c847aa803120"
+        }
+      ],
+      "minimumDistinctRecoveredPayloads": 1,
+      "notes": "Only the first 2000 bytes remain; the final 609 bytes, including the end marker, are absent."
+    },
+    {
+      "id": "raw-corrupt-metadata-jpeg",
+      "filesystem": "none (raw image)",
+      "archivePath": "fixtures/raw-corrupt-metadata-jpeg.img.gz",
+      "archiveSHA256": "14de0039b4742e7b52856b16d2b56a7b2a118daa8acdb1aaac93872543e9a660",
+      "classification": "byte-exact recovery of damaged source artifact",
+      "expectedRecoveries": [
+        {
+          "label": "JPEG with invalid EXIF byte-order marker",
+          "sha256": "a6134914cb12bb1760dce89c7d268045dccfce01e6f3ce307d8b214910c2729e"
+        }
+      ],
+      "forbiddenRecoveries": [
+        {
+          "label": "intact synthetic JPEG",
+          "sha256": "ece6530f7391025fe807d9a375bb1d9e28f296b5d8f2e58fe7e4c847aa803120"
+        }
+      ],
+      "notes": "The two-byte TIFF byte-order marker in EXIF is replaced with ZZ; image data and JPEG boundaries remain present."
+    },
+    {
+      "id": "raw-overwritten-jpeg",
+      "filesystem": "none (raw image)",
+      "archivePath": "fixtures/raw-overwritten-jpeg.img.gz",
+      "archiveSHA256": "66fcc0f0f167b5828409e3965bc930803dece0a24a6f124077f3efb13448519a",
+      "classification": "byte-exact recovery of damaged source artifact",
+      "expectedRecoveries": [
+        {
+          "label": "JPEG with bytes 1024 through 1535 overwritten by zeros",
+          "sha256": "4e271f99b41dbe930646202d60dcf3b180e04dd408bf496f62749e3bac6901a9"
+        }
+      ],
+      "forbiddenRecoveries": [
+        {
+          "label": "intact synthetic JPEG",
+          "sha256": "ece6530f7391025fe807d9a375bb1d9e28f296b5d8f2e58fe7e4c847aa803120"
+        }
+      ],
+      "notes": "A 512-byte range in the compressed image data is overwritten by zeros; the JPEG header and end marker remain present."
     }
   ]
 }

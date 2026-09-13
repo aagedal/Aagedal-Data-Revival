@@ -10,10 +10,12 @@ temporary_root="$(mktemp -d "${TMPDIR:-/tmp}/DataRevivalBenchmarkFixtures.XXXXXX
 attached_device=""
 
 cleanup() {
+    local status=$?
     if [[ -n "$attached_device" ]]; then
         hdiutil detach "$attached_device" -force >/dev/null 2>&1 || true
     fi
     rm -rf "$temporary_root"
+    return "$status"
 }
 trap cleanup EXIT
 
@@ -105,29 +107,68 @@ PY
     # restoring filename, directory, or allocation metadata.
     /bin/dd if="$original" of="$raw_image" bs=1 seek="$payload_offset" conv=notrunc status=none
 
-    /usr/bin/gzip -9 -c "$raw_image" > "$archive"
+    /usr/bin/gzip -n -9 -c "$raw_image" > "$archive"
     echo "generated $archive"
 }
 
-create_fixture "fat32-quick-format-contiguous-jpeg" "MS-DOS FAT32" "DRBENCHFAT"
-create_fixture "exfat-quick-format-contiguous-jpeg" "ExFAT" "DRBENCHXFT"
+if [[ "${EDGE_FIXTURES_ONLY:-0}" != "1" ]]; then
+    create_fixture "fat32-quick-format-contiguous-jpeg" "MS-DOS FAT32" "DRBENCHFAT"
+    create_fixture "exfat-quick-format-contiguous-jpeg" "ExFAT" "DRBENCHXFT"
+fi
 
-fat_hash="$(/usr/bin/shasum -a 256 "$fixture_directory/fat32-quick-format-contiguous-jpeg.img.gz" | /usr/bin/awk '{print $1}')"
-exfat_hash="$(/usr/bin/shasum -a 256 "$fixture_directory/exfat-quick-format-contiguous-jpeg.img.gz" | /usr/bin/awk '{print $1}')"
+create_edge_fixture() {
+    local identifier="$1"
+    local raw_image="$temporary_root/$identifier.img"
+    local payload="$temporary_root/$identifier.jpg"
+    local archive="$fixture_directory/$identifier.img.gz"
 
-/usr/bin/python3 - "$manifest" "$fat_hash" "$exfat_hash" <<'PY'
+    /bin/dd if=/dev/zero of="$raw_image" bs=1m count=8 status=none
+
+    case "$identifier" in
+        "raw-fragmented-jpeg")
+            /bin/dd if="$original" of="$raw_image" bs=1 count=1024 seek=1048576 conv=notrunc status=none
+            /bin/dd if="$original" of="$raw_image" bs=1 skip=1024 seek=1052672 conv=notrunc status=none
+            ;;
+        "raw-truncated-jpeg")
+            /bin/dd if="$original" of="$raw_image" bs=1 count=2000 seek=1048576 conv=notrunc status=none
+            ;;
+        "raw-corrupt-metadata-jpeg")
+            /bin/cp "$original" "$payload"
+            printf 'ZZ' | /bin/dd of="$payload" bs=1 seek=30 conv=notrunc status=none
+            /bin/dd if="$payload" of="$raw_image" bs=1 seek=1048576 conv=notrunc status=none
+            ;;
+        "raw-overwritten-jpeg")
+            /bin/cp "$original" "$payload"
+            /bin/dd if=/dev/zero of="$payload" bs=1 seek=1024 count=512 conv=notrunc status=none
+            /bin/dd if="$payload" of="$raw_image" bs=1 seek=1048576 conv=notrunc status=none
+            ;;
+        *)
+            echo "error: unsupported edge fixture: $identifier" >&2
+            exit 1
+            ;;
+    esac
+
+    /usr/bin/gzip -n -9 -c "$raw_image" > "$archive"
+    echo "generated $archive"
+}
+
+create_edge_fixture "raw-fragmented-jpeg"
+create_edge_fixture "raw-truncated-jpeg"
+create_edge_fixture "raw-corrupt-metadata-jpeg"
+create_edge_fixture "raw-overwritten-jpeg"
+
+/usr/bin/python3 - "$manifest" "$fixture_directory" <<'PY'
+import hashlib
 import json
 import pathlib
 import sys
 
 path = pathlib.Path(sys.argv[1])
+fixture_directory = pathlib.Path(sys.argv[2])
 manifest = json.loads(path.read_text())
-hashes = dict(zip(
-    ("fat32-quick-format-contiguous-jpeg", "exfat-quick-format-contiguous-jpeg"),
-    sys.argv[2:],
-))
 for fixture in manifest["fixtures"]:
-    fixture["archiveSHA256"] = hashes[fixture["id"]]
+    archive = fixture_directory / pathlib.Path(fixture["archivePath"]).name
+    fixture["archiveSHA256"] = hashlib.sha256(archive.read_bytes()).hexdigest()
 path.write_text(json.dumps(manifest, indent=2) + "\n")
 PY
 
