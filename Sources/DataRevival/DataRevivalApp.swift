@@ -188,7 +188,8 @@ private struct RecoveryView: View {
                 .listStyle(.sidebar)
                 .disabled(imaging.isActive)
                 VStack(alignment: .leading, spacing: 8) {
-                    Label("Early prototype", systemImage: "hammer").font(.callout.weight(.medium))
+                    Label("Photo recovery", systemImage: "photo.on.rectangle")
+                        .font(.callout.weight(.medium))
                     Text("Explore sample files or run an experimental photo scan from a raw disk image.")
                         .font(.caption).foregroundStyle(.secondary)
                     Divider()
@@ -208,14 +209,6 @@ private struct RecoveryView: View {
                 }
             }
             .navigationTitle(workspace?.rawValue ?? "Recover files")
-            .toolbar {
-                ToolbarItem {
-                    Text("PROTOTYPE").font(.caption2.weight(.semibold)).tracking(1)
-                        .padding(.horizontal, 10).padding(.vertical, 5)
-                        .background(.orange.opacity(0.12), in: Capsule()).foregroundStyle(.orange)
-                        .accessibilityLabel("Release status: prototype")
-                }
-            }
         }
         .tint(.teal)
         .sheet(isPresented: $showingLegalNotice) {

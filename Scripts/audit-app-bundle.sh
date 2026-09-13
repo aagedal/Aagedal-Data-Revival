@@ -96,7 +96,6 @@ audit_signature() {
     local binary="$1"
     local signature_details
     local entitlements
-    local forbidden_entitlement
 
     codesign --verify --strict --verbose=2 "$binary"
     signature_details="$(codesign -dvv "$binary" 2>&1)"
@@ -109,19 +108,17 @@ audit_signature() {
         exit 1
     fi
 
-    entitlements="$(codesign -d --entitlements - "$binary" 2>&1)"
-    for forbidden_entitlement in \
-        com.apple.security.get-task-allow \
-        com.apple.security.cs.allow-jit \
-        com.apple.security.cs.allow-unsigned-executable-memory \
-        com.apple.security.cs.disable-executable-page-protection \
-        com.apple.security.cs.disable-library-validation
-    do
-        if grep -Fq "$forbidden_entitlement" <<< "$entitlements"; then
-            echo "error: distribution code has forbidden entitlement $forbidden_entitlement: $binary" >&2
-            exit 1
-        fi
-    done
+    if ! grep -q '^Timestamp=' <<< "$signature_details"; then
+        echo "error: distribution code has no trusted signing timestamp: $binary" >&2
+        exit 1
+    fi
+
+    entitlements="$(codesign -d --entitlements - "$binary" 2>/dev/null || true)"
+    if [[ -n "$entitlements" ]]; then
+        echo "error: 1.0 distribution code has unreviewed entitlements: $binary" >&2
+        echo "$entitlements" >&2
+        exit 1
+    fi
 }
 
 if [[ -e "$app/Contents/MacOS/DataRevivalImagingHelper" ||

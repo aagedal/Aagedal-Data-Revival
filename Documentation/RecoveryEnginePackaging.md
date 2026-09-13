@@ -63,9 +63,10 @@ app. It takes engine products from `Build/RecoveryEngines` by default; set the
 `RECOVERY_ENGINE_PRODUCTS_DIR` build setting to use a separate verified output.
 Debug builds warn and continue when those products are absent. Release builds
 fail instead of silently producing an app without its engines. When code
-signing is active, the phase signs each engine with Xcode's expanded identity
-and hardened-runtime option before Xcode signs the outer app. The deliberately
-unsigned CI build skips only that signing operation.
+signing is active, the phase signs each engine with Xcode's expanded identity,
+hardened-runtime option, and the signing service's trusted timestamp before
+Xcode signs the outer app. The deliberately unsigned CI build skips only that
+signing operation.
 
 ## Release gate
 
@@ -77,8 +78,9 @@ Scripts/audit-app-bundle.sh "/path/to/Aagedal Data Revival.app"
 
 The audit fails when the app or bundled native code is not arm64-only, a
 required engine is absent, is not executable, is not signed with a Developer ID
-Application identity, lacks hardened runtime, carries a development or
-runtime-weakening entitlement, or links to an absolute
+Application identity, lacks hardened runtime or a trusted timestamp, carries
+any entitlement not reviewed for the entitlement-free 1.0 Release
+configuration, or links to an absolute
 dependency outside macOS system locations. It permits the system Swift runtime
 path but rejects other external `LC_RPATH` entries, validates the
 absence of the obsolete LaunchDaemon/helper payload, verifies every packaged engine artifact against the build

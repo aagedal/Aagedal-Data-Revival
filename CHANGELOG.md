@@ -23,6 +23,11 @@ All notable changes to Aagedal Data Revival are recorded here. The project uses
 - A versioned JPEG recovery-quality benchmark and deterministic UI workflow.
 - VoiceOver descriptions for recovery and imaging state, plus keyboard shortcuts
   for the primary open, cancel, export, and rescan actions.
+- A clean-checkout release-candidate command that creates the Developer ID
+  archive, notarizes and staples it, runs the bundle and Gatekeeper gates, and
+  emits the versioned ZIP with its SHA-256 checksum.
+- Release-ready product wording without pre-release branding in the application
+  or current user documentation.
 
 ### Known limitations
 

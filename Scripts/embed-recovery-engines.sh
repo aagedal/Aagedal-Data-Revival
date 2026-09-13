@@ -149,7 +149,6 @@ for tool in "${required_tools[@]}"; do
         /usr/bin/codesign \
             --force \
             --sign "$signing_identity" \
-            --timestamp=none \
             "${signing_options[@]}" \
             "$destination"
     fi

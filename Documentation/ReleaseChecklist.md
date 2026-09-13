@@ -30,6 +30,12 @@ box in this document is not a substitute for evidence from the candidate.
   `stapler validate` and `spctl --assess --type execute --verbose=4` pass with
   the Mac offline.
 
+`Scripts/prepare-release-candidate.sh` performs the signed archive, online
+notarization, staple validation, bundle audit, initial Gatekeeper assessment,
+and final ZIP/checksum steps. Preserve its complete output, then repeat the
+explicitly offline and clean-machine checks above rather than treating the
+script run as hardware evidence.
+
 ## Hardware acceptance
 
 - [ ] Test each supported macOS major version on Apple silicon hardware.
