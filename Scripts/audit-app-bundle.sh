@@ -137,6 +137,7 @@ fi
 
 photorec_archive_name="$(/usr/bin/plutil -extract engines.photorec.sourceArchiveName raw -o - "$engine_artifacts/RecoveryEngines.lock.json")"
 ddrescue_archive_name="$(/usr/bin/plutil -extract engines.ddrescue.sourceArchiveName raw -o - "$engine_artifacts/RecoveryEngines.lock.json")"
+ddrescue_patch_name="$(/usr/bin/plutil -extract engines.ddrescue.patches.0.fileName raw -o - "$engine_artifacts/RecoveryEngines.lock.json")"
 required_artifacts=(
     Licenses/PhotoRec-COPYING.txt
     Licenses/GNU-ddrescue-COPYING.txt
@@ -146,6 +147,7 @@ required_artifacts=(
     SHA256SUMS
     "SourceArchives/$photorec_archive_name"
     "SourceArchives/$ddrescue_archive_name"
+    "SourcePatches/$ddrescue_patch_name"
 )
 for artifact in "${required_artifacts[@]}"; do
     if [[ ! -f "$engine_artifacts/$artifact" || -L "$engine_artifacts/$artifact" ]]; then

@@ -29,8 +29,13 @@ enum DDRescueMapfile {
     }
 
     /// Parses the strict mapfile shape produced by Data Revival's whole-device
-    /// ddrescue command. The block list must cover the source exactly, without
-    /// gaps or overlaps, before it is trusted for a resumed write.
+    /// ddrescue command. The block list must cover the authenticated source
+    /// without gaps or overlaps before it is trusted for a resumed write.
+    ///
+    /// On macOS a raw character-device descriptor can report `Int64.max` as its
+    /// apparent length. Even with ddrescue's `--size` limit, ddrescue preserves
+    /// that out-of-domain tail in its mapfile. Validate the complete map shape,
+    /// but summarize only the real source range supplied by Disk Arbitration.
     static func parse(_ data: Data, expectedByteCount: Int64) throws -> DDRescueMapSnapshot {
         guard expectedByteCount > 0,
               let contents = String(data: data, encoding: .utf8) else {
@@ -54,6 +59,7 @@ enum DDRescueMapfile {
         }
 
         var expectedPosition: Int64 = 0
+        var coveredSource = false
         var rescuedByteCount: Int64 = 0
         var badSectorByteCount: Int64 = 0
         var pendingByteCount: Int64 = 0
@@ -70,22 +76,30 @@ enum DDRescueMapfile {
             }
 
             let (end, overflow) = position.addingReportingOverflow(size)
-            guard !overflow, end <= expectedByteCount else {
+            guard !overflow else {
                 throw ParseError.invalid
             }
             expectedPosition = end
 
+            guard position < expectedByteCount else {
+                continue
+            }
+            let inSourceSize = min(end, expectedByteCount) - position
+            if end >= expectedByteCount {
+                coveredSource = true
+            }
+
             switch blockStatus {
             case "+":
-                rescuedByteCount += size
+                rescuedByteCount += inSourceSize
             case "-":
-                badSectorByteCount += size
+                badSectorByteCount += inSourceSize
             default:
-                pendingByteCount += size
+                pendingByteCount += inSourceSize
             }
         }
 
-        guard expectedPosition == expectedByteCount else {
+        guard coveredSource else {
             throw ParseError.invalid
         }
 

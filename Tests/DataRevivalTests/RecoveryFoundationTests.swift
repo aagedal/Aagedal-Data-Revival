@@ -149,6 +149,12 @@ struct RecoveryFoundationTests {
             #expect(engine.sourceSHA256.allSatisfy { $0.isHexDigit && !$0.isUppercase })
             #expect(engine.license == "GPL-2.0-or-later")
         }
+        let ddrescuePatches = try #require(lock.engines["ddrescue"]?.patches)
+        #expect(ddrescuePatches.count == 1)
+        let ddrescuePatch = try #require(ddrescuePatches.first)
+        #expect(ddrescuePatch.fileName == "ddrescue-inherited-stdin.patch")
+        #expect(ddrescuePatch.sha256 == "d3555989d963b73be01cd7ecb05853c3edfb012c5ad0a62d3c6d370234ef5f91")
+        #expect(lock.engines["photorec"]?.patches == nil)
     }
 
     @Test("Disk discovery keeps only whole recovery-source devices")
@@ -302,6 +308,7 @@ struct RecoveryFoundationTests {
 
         #expect(command.arguments == [
             "--verbose",
+            "--size=64000",
             "/dev/rdisk7",
             root.appendingPathComponent("camera card.img").path,
             root.appendingPathComponent("camera card.img.map").path
@@ -309,6 +316,9 @@ struct RecoveryFoundationTests {
         #expect(command.runnerLogURL.lastPathComponent == "camera card.img.ddrescue.log")
         #expect(command.mapURL == plan.mapURL)
         #expect(command.sourceByteCount == source.byteCount)
+        #expect(DiskLifecycleOperation.unmount.honorsPreflightCancellation)
+        #expect(!DiskLifecycleOperation.mount.honorsPreflightCancellation)
+        #expect(!DiskLifecycleOperation.eject.honorsPreflightCancellation)
     }
 
     @Test("authopen requests only path-specific read-only card access")
@@ -703,6 +713,31 @@ struct RecoveryFoundationTests {
         #expect(throws: DDRescueMapfile.ParseError.invalid) {
             try DDRescueMapfile.parse(
                 Data(mapfileWithGap.utf8),
+                expectedByteCount: 65_536
+            )
+        }
+
+        let mapfileWithRawDeviceTail = """
+        0x00002800 ? 1
+        0x00000000 0x00002800 +
+        0x00002800 0x0000D800 ?
+        0x00010000 0x7FFFFFFFFFFEFFFF ?
+        """
+        let clippedSnapshot = try DDRescueMapfile.parse(
+            Data(mapfileWithRawDeviceTail.utf8),
+            expectedByteCount: 65_536
+        )
+        #expect(clippedSnapshot.rescuedByteCount == 10_240)
+        #expect(clippedSnapshot.pendingByteCount == 55_296)
+        #expect(clippedSnapshot.totalByteCount == 65_536)
+
+        let mapfileEndingBeforeSource = """
+        0 ? 1
+        0 32768 +
+        """
+        #expect(throws: DDRescueMapfile.ParseError.invalid) {
+            try DDRescueMapfile.parse(
+                Data(mapfileEndingBeforeSource.utf8),
                 expectedByteCount: 65_536
             )
         }
@@ -1130,12 +1165,18 @@ private struct RecoveryEngineSourceLock: Decodable {
     }
 
     struct Engine: Decodable {
+        struct Patch: Decodable {
+            let fileName: String
+            let sha256: String
+        }
+
         let version: String
         let sourceArchiveName: String
         let sourceURL: URL
         let sourceSHA256: String
         let releaseURL: URL
         let license: String
+        let patches: [Patch]?
     }
 
     let schemaVersion: Int

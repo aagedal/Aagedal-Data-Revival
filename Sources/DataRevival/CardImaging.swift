@@ -392,6 +392,7 @@ struct DDRescueCommand: Sendable, Equatable {
             executableURL: executableURL,
             arguments: [
                 "--verbose",
+                "--size=\(plan.sourceDevice.byteCount)",
                 sourcePath ?? plan.sourceDeviceURL.path,
                 plan.imageURL.path,
                 plan.mapURL.path

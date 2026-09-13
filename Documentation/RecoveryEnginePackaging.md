@@ -21,6 +21,7 @@ Aagedal Data Revival.app/
         Licenses/
         Notices/
         SourceArchives/
+        SourcePatches/
         RecoveryEngines.lock.json
         SHA256SUMS
 ```
@@ -33,7 +34,7 @@ universal builds whose dependency set is known over copying binaries from a
 developer's package-manager prefix.
 
 The engine binaries, exact upstream license texts and author notices, build
-lock, checksums, and corresponding source archives ship together in every
+lock, checksums, corresponding source archives, and reviewed source patches ship together in every
 release app. This makes the source used for the bundled binaries available
 offline from the application itself rather than relying on a future download
 or a time-limited written offer. Per-file copyright notices and complete build
@@ -45,7 +46,9 @@ The app does not install a privileged helper or LaunchDaemon. It obtains a
 temporary, path-specific read-only raw-device descriptor from macOS
 `/usr/libexec/authopen`, validates that the descriptor still represents the
 selected card, and passes it to bundled ddrescue while ddrescue runs as the
-logged-in user. The app must remain outside App Sandbox because Authorization
+logged-in user. The reviewed ddrescue patch duplicates this inherited descriptor
+instead of reopening `/dev/fd/0`, which would make macOS repeat the raw-device
+access check in the unprivileged child. The app must remain outside App Sandbox because Authorization
 Services does not support privilege elevation from a sandboxed process.
 
 The reviewed source versions and checksums are locked in
@@ -78,7 +81,7 @@ runtime-weakening entitlement, or links to an absolute
 dependency outside macOS system locations. It permits the system Swift runtime
 path but rejects other external `LC_RPATH` entries, validates the
 absence of the obsolete LaunchDaemon/helper payload, verifies every packaged engine artifact against the build
-checksums, requires both corresponding source archives, and verifies the outer
+checksums, requires both corresponding source archives and the reviewed ddrescue source patch, and verifies the outer
 app's nested signature. `SHA256SUMS` retains the reproducible pre-sign engine
 digests; the audit validates shipped executable identity with code signatures
 because signing necessarily changes their Mach-O bytes. All non-code artifacts

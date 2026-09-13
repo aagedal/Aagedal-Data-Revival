@@ -11,6 +11,8 @@ enum DiskLifecycleOperation: String, Sendable, Equatable {
     case unmount
     case mount
     case eject
+
+    var honorsPreflightCancellation: Bool { self == .unmount }
 }
 
 enum DiskLifecycleError: LocalizedError, Equatable {
@@ -51,7 +53,11 @@ struct DiskArbitrationLifecycleController: DiskLifecycleControlling {
     }
 
     private func perform(_ operation: DiskLifecycleOperation, bsdName: String) async throws {
-        try Task.checkCancellation()
+        // A cancelled imaging task must still be allowed to restore the card.
+        // Only the preparatory unmount should be skipped when already cancelled.
+        if operation.honorsPreflightCancellation {
+            try Task.checkCancellation()
+        }
         guard let session = DASessionCreate(kCFAllocatorDefault) else {
             throw DiskLifecycleError.sessionUnavailable
         }

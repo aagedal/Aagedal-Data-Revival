@@ -66,8 +66,20 @@ enum AuthorizedImagingError: LocalizedError, Equatable {
     }
 }
 
-enum RawDeviceAuthorization {
-    static func request(for invocation: AuthopenInvocation) throws -> Data {
+final class RawDeviceAuthorization: @unchecked Sendable {
+    let externalForm: Data
+    private let reference: AuthorizationRef
+
+    private init(externalForm: Data, reference: AuthorizationRef) {
+        self.externalForm = externalForm
+        self.reference = reference
+    }
+
+    deinit {
+        AuthorizationFree(reference, [])
+    }
+
+    static func request(for invocation: AuthopenInvocation) throws -> RawDeviceAuthorization {
         guard invocation.rawDeviceURL.path.range(
             of: #"^/dev/rdisk[0-9]+$"#,
             options: .regularExpression
@@ -79,7 +91,6 @@ enum RawDeviceAuthorization {
         guard status == errAuthorizationSuccess, let authorization else {
             throw AuthorizedImagingError.authorizationFailed(status)
         }
-        defer { AuthorizationFree(authorization, []) }
 
         status = invocation.authorizationRight.withCString { name in
             var item = AuthorizationItem(
@@ -100,15 +111,21 @@ enum RawDeviceAuthorization {
             }
         }
         guard status == errAuthorizationSuccess else {
+            AuthorizationFree(authorization, [])
             throw AuthorizedImagingError.authorizationFailed(status)
         }
 
         var externalForm = AuthorizationExternalForm()
         status = AuthorizationMakeExternalForm(authorization, &externalForm)
         guard status == errAuthorizationSuccess else {
+            AuthorizationFree(authorization, [])
             throw AuthorizedImagingError.authorizationFailed(status)
         }
-        return withUnsafeBytes(of: externalForm) { Data($0) }
+        let data = withUnsafeBytes(of: externalForm) { Data($0) }
+        // The originating AuthorizationRef must remain alive until authopen has
+        // internalized the external form. Releasing it earlier invalidates the
+        // granted right and makes authopen prompt a second time.
+        return RawDeviceAuthorization(externalForm: data, reference: authorization)
     }
 }
 
@@ -192,7 +209,7 @@ enum FileDescriptorReceiver {
 protocol RawDeviceOpening: Sendable {
     func openReadOnly(
         device: StorageDevice,
-        authorization: Data
+        authorization: RawDeviceAuthorization
     ) async throws -> FileHandle
     func cancel()
 }
@@ -218,7 +235,7 @@ final class AuthopenRawDeviceOpener: RawDeviceOpening, @unchecked Sendable {
 
     func openReadOnly(
         device: StorageDevice,
-        authorization: Data
+        authorization: RawDeviceAuthorization
     ) async throws -> FileHandle {
         try await withTaskCancellationHandler {
             try await Task.detached(priority: .userInitiated) {
@@ -240,7 +257,7 @@ final class AuthopenRawDeviceOpener: RawDeviceOpening, @unchecked Sendable {
 
     private func openSynchronously(
         device: StorageDevice,
-        authorization: Data
+        authorization: RawDeviceAuthorization
     ) throws -> FileHandle {
         guard FileManager.default.isExecutableFile(atPath: executableURL.path) else {
             throw AuthorizedImagingError.authopenUnavailable
@@ -289,7 +306,7 @@ final class AuthopenRawDeviceOpener: RawDeviceOpening, @unchecked Sendable {
         close(senderSocket)
         senderIsOpen = false
         do {
-            try authorizationPipe.fileHandleForWriting.write(contentsOf: authorization)
+            try authorizationPipe.fileHandleForWriting.write(contentsOf: authorization.externalForm)
             try authorizationPipe.fileHandleForWriting.close()
         } catch {
             process.interrupt()
@@ -357,7 +374,7 @@ final class AuthorizedCardImagingClient: @unchecked Sendable {
 
     func image(
         plan: CardImagingPlan,
-        authorization: Data,
+        authorization: RawDeviceAuthorization,
         onProgress: (@Sendable (DDRescueMapSnapshot) async -> Void)? = nil
     ) async throws -> AuthorizedImagingResult {
         try plan.validateForExecution()

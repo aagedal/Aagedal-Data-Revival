@@ -39,9 +39,11 @@ done
 
 photorec_archive_name="$(/usr/bin/plutil -extract engines.photorec.sourceArchiveName raw -o - "$SRCROOT/Configuration/RecoveryEngines.lock.json")"
 ddrescue_archive_name="$(/usr/bin/plutil -extract engines.ddrescue.sourceArchiveName raw -o - "$SRCROOT/Configuration/RecoveryEngines.lock.json")"
+ddrescue_patch_name="$(/usr/bin/plutil -extract engines.ddrescue.patches.0.fileName raw -o - "$SRCROOT/Configuration/RecoveryEngines.lock.json")"
 source_artifacts+=(
     "SourceArchives/$photorec_archive_name"
     "SourceArchives/$ddrescue_archive_name"
+    "SourcePatches/$ddrescue_patch_name"
 )
 
 missing_artifacts=()
@@ -145,7 +147,7 @@ for tool in "${required_tools[@]}"; do
 done
 
 /bin/mkdir -p "$destination_artifacts"
-for directory in Licenses Notices SourceArchives; do
+for directory in Licenses Notices SourceArchives SourcePatches; do
     /bin/mkdir -p "$destination_artifacts/$directory"
 done
 for artifact in "${source_artifacts[@]}"; do

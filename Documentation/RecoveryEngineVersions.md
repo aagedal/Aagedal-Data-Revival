@@ -2,7 +2,7 @@
 
 Version 1.0 pins the source inputs in
 `Configuration/RecoveryEngines.lock.json`. Changes to an engine version, source
-URL, checksum, target architecture, or minimum macOS version require a reviewed
+URL, checksum, source patch, target architecture, or minimum macOS version require a reviewed
 manifest change and a fresh recovery benchmark.
 
 ## Reviewed selections
@@ -18,6 +18,13 @@ PhotoRec integrations that would introduce package-manager or non-system
 libraries. PhotoRec's file-carving implementation and the formats selected by
 Data Revival remain built in; disabled filesystem and GUI integrations are not
 used by the scripted whole-image scan.
+
+Data Revival applies the separately checksum-pinned
+`ddrescue-inherited-stdin.patch`. It changes only ddrescue's initial input open:
+when the app names `/dev/fd/0`, ddrescue duplicates the read-only descriptor that
+macOS already authorized instead of reopening it and triggering another device
+permission check. The original archive and the exact applied patch are both
+included with the app.
 
 This selection is an engineering pin, not the final license approval. Both
 engines are GPL-2.0-or-later and the repository currently carries GPLv3, but all
@@ -35,15 +42,15 @@ Scripts/build-recovery-engines.sh
 The script downloads only the two locked HTTPS source archives, verifies their
 SHA-256 digests before extraction, targets arm64 and macOS 14, and rejects any
 result that links outside macOS system libraries. It emits the two executables,
-exact source archives, upstream license texts, lockfile, and output checksums
+exact source archives and patches, upstream license texts, lockfile, and output checksums
 under `Build/RecoveryEngines` by default. Pass a new output directory as the
 first argument to compare independent builds. Set
 `DATA_REVIVAL_ENGINE_SOURCE_CACHE` to reuse an existing archive cache.
 
 Generated output is intentionally not committed. The Xcode packaging phase
 copies `Helpers/photorec` and `Helpers/ddrescue` into the app and embeds the
-exact upstream licenses, author notices, build lock, checksums, and unmodified
-corresponding-source archives under `Contents/Resources/RecoveryEngines`.
+exact upstream licenses, author notices, build lock, checksums, unmodified
+upstream archives, and applied source patches under `Contents/Resources/RecoveryEngines`.
 
 As a reproducibility check on 2026-09-13, two clean builds in separate temporary
 directories produced byte-identical executables with Apple clang 21.0.0 and the

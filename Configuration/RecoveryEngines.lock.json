@@ -22,7 +22,13 @@
       "sourceURL": "https://ftp.gnu.org/gnu/ddrescue/ddrescue-1.30.tar.lz",
       "sourceSHA256": "2264622d309d6c87a1cfc19148292b8859a688e9bc02d4702f5cd4f288745542",
       "releaseURL": "https://lists.gnu.org/archive/html/info-gnu/2026-01/msg00001.html",
-      "license": "GPL-2.0-or-later"
+      "license": "GPL-2.0-or-later",
+      "patches": [
+        {
+          "fileName": "ddrescue-inherited-stdin.patch",
+          "sha256": "d3555989d963b73be01cd7ecb05853c3edfb012c5ad0a62d3c6d370234ef5f91"
+        }
+      ]
     }
   }
 }

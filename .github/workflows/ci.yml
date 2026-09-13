@@ -67,5 +67,6 @@ jobs:
           test -f "$artifacts/Notices/GNU-ddrescue-AUTHORS.txt"
           test -f "$artifacts/SourceArchives/testdisk-7.2.tar.bz2"
           test -f "$artifacts/SourceArchives/ddrescue-1.30.tar.lz"
+          test -f "$artifacts/SourcePatches/ddrescue-inherited-stdin.patch"
           test -f "$artifacts/RecoveryEngines.lock.json"
           test -f "$artifacts/SHA256SUMS"

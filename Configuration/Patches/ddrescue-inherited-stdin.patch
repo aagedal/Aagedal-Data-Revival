@@ -1,0 +1,17 @@
+--- a/main.cc
++++ b/main.cc
+@@ -533,7 +533,13 @@ int do_rescue( const long long offset, Domain & domain,
+                   0, true ); return 1; }
+ 
+   // use same flags as reopen_infile
+-  const int ides = open( iname, O_RDONLY | rb_opts.o_direct_in | O_BINARY );
++  // Data Revival receives a raw-device descriptor from macOS authopen. Opening
++  // /dev/fd/0 would re-run the raw-device access check in the unprivileged
++  // ddrescue process, so duplicate the already-authorized descriptor instead.
++  const bool inherited_stdin = std::strcmp( iname, "/dev/fd/0" ) == 0;
++  const int ides = inherited_stdin
++    ? dup( STDIN_FILENO )
++    : open( iname, O_RDONLY | rb_opts.o_direct_in | O_BINARY );
+   if( ides < 0 )
+     { show_file_error( iname, "Can't open input file", errno ); return 1; }
+   const long long insize =
