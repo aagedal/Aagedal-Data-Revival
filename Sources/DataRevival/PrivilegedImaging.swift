@@ -96,6 +96,35 @@ struct PrivilegedImagingResponse: Codable, Sendable, Equatable {
     let outcome: Outcome
     let exitStatus: Int32?
     let message: String?
+    let issue: PrivilegedImagingIssue?
+}
+
+enum PrivilegedImagingIssue: String, Codable, Sendable, Equatable {
+    case authorizationDenied
+    case sourceRemoved
+    case destinationFull
+    case readErrors
+    case helperFailure
+
+    var fallbackMessage: String {
+        switch self {
+        case .authorizationDenied:
+            "Administrator authorization was denied. No card data was read."
+        case .sourceRemoved:
+            "The recovery source was removed or changed. Reconnect the original card, then check the existing image for resume."
+        case .destinationFull:
+            "The destination ran out of space. Free enough space, then check the existing image for resume."
+        case .readErrors:
+            "The card contains unreadable regions. Keep the mapfile with the image so another resume attempt can retry them."
+        case .helperFailure:
+            "The privileged imaging helper stopped unexpectedly. The image, mapfile, and logs were preserved where possible."
+        }
+    }
+}
+
+struct PrivilegedImagingResult: Sendable, Equatable {
+    let issue: PrivilegedImagingIssue?
+    let message: String?
 }
 
 enum PrivilegedImagingError: LocalizedError, Equatable {
@@ -127,7 +156,13 @@ enum PrivilegedImagingError: LocalizedError, Equatable {
         case .invalidDestination:
             "The privileged helper rejected the card-image destination."
         case let .authorizationFailed(status):
-            "Administrator authorization was not granted (status \(status))."
+            if status == errAuthorizationCanceled {
+                "Administrator authorization was cancelled. No card data was read."
+            } else if status == errAuthorizationDenied {
+                "Administrator authorization was denied. No card data was read."
+            } else {
+                "Administrator authorization could not be completed (status \(status)). No card data was read."
+            }
         case .invalidResponse:
             "The privileged imaging helper returned an unreadable response."
         case let .failed(message):
@@ -198,7 +233,7 @@ final class PrivilegedImagingClient: @unchecked Sendable {
         request: PrivilegedImagingRequest,
         authorization: Data,
         onProgress: (@Sendable (DDRescueMapSnapshot) async -> Void)? = nil
-    ) async throws {
+    ) async throws -> PrivilegedImagingResult {
         try request.validateStructure()
         switch serviceStatus {
         case .enabled:
@@ -265,12 +300,16 @@ final class PrivilegedImagingClient: @unchecked Sendable {
         )
         switch response.outcome {
         case .completed:
-            return
+            return PrivilegedImagingResult(
+                issue: response.issue,
+                message: response.message ?? response.issue?.fallbackMessage
+            )
         case .cancelled:
             throw CancellationError()
         case .failed:
             throw PrivilegedImagingError.failed(
-                response.message ?? "The privileged imaging helper stopped unexpectedly."
+                response.message ?? response.issue?.fallbackMessage ??
+                    "The privileged imaging helper stopped unexpectedly."
             )
         }
     }
@@ -356,6 +395,11 @@ private final class XPCReplyGate<Value: Sendable>: @unchecked Sendable {
 
 @MainActor
 final class CardImagingViewModel: ObservableObject {
+    private enum CancellationReason {
+        case user
+        case systemSleep
+    }
+
     enum State: Equatable {
         case idle
         case preparing
@@ -369,10 +413,12 @@ final class CardImagingViewModel: ObservableObject {
     @Published private(set) var progress: DDRescueMapSnapshot?
     @Published private(set) var helperStatus: SMAppService.Status = .notRegistered
     @Published private(set) var activePlan: CardImagingPlan?
+    @Published private(set) var completionNotice: String?
 
     private let client: PrivilegedImagingClient
     private let sourceCoordinator: CardImagingSourceCoordinator
     private var imagingTask: Task<Void, Never>?
+    private var cancellationReason: CancellationReason?
 
     init(
         client: PrivilegedImagingClient = PrivilegedImagingClient(),
@@ -413,6 +459,8 @@ final class CardImagingViewModel: ObservableObject {
         state = .preparing
         progress = plan.mapSnapshot
         activePlan = plan
+        completionNotice = nil
+        cancellationReason = nil
 
         imagingTask = Task { [weak self] in
             guard let self else { return }
@@ -425,7 +473,7 @@ final class CardImagingViewModel: ObservableObject {
                 state = .imaging
 
                 let request = PrivilegedImagingRequest(plan: plan)
-                try await client.image(
+                let result = try await client.image(
                     request: request,
                     authorization: authorization
                 ) { snapshot in
@@ -438,12 +486,18 @@ final class CardImagingViewModel: ObservableObject {
                    ) {
                     progress = snapshot
                 }
+                completionNotice = result.message
                 state = .completed
             } catch is CancellationError {
                 if sourceWasUnmounted {
                     try? await sourceCoordinator.finishImaging(plan: plan, action: .remount)
                 }
-                state = .failed("Card imaging was cancelled. The partial image and its resume files were preserved.")
+                if cancellationReason == .systemSleep {
+                    state = .failed("Card imaging stopped because the Mac was going to sleep. The partial image and resume files were preserved; reconnect the card if needed, then check the existing image for resume.")
+                } else {
+                    state = .failed("Card imaging was cancelled. The partial image and its resume files were preserved and can be checked for resume.")
+                }
+                cancellationReason = nil
             } catch {
                 if sourceWasUnmounted {
                     try? await sourceCoordinator.finishImaging(plan: plan, action: .remount)
@@ -455,6 +509,17 @@ final class CardImagingViewModel: ObservableObject {
 
     func cancel() {
         guard isActive else { return }
+        cancellationReason = .user
+        stopActiveImaging()
+    }
+
+    func interruptForSystemSleep() {
+        guard isActive else { return }
+        cancellationReason = .systemSleep
+        stopActiveImaging()
+    }
+
+    private func stopActiveImaging() {
         state = .cancelling
         client.cancelActiveOperation()
         imagingTask?.cancel()
@@ -468,6 +533,7 @@ final class CardImagingViewModel: ObservableObject {
                 state = .idle
                 activePlan = nil
                 progress = nil
+                completionNotice = nil
             } catch {
                 state = .failed(error.localizedDescription)
             }

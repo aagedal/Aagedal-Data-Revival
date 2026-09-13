@@ -150,6 +150,13 @@ private struct RecoveryView: View {
             recovery.loadSessions()
             imaging.refreshHelperStatus()
         }
+        .onReceive(
+            NSWorkspace.shared.notificationCenter.publisher(
+                for: NSWorkspace.willSleepNotification
+            )
+        ) { _ in
+            imaging.interruptForSystemSleep()
+        }
         .onChange(of: workspace) { _, workspace in
             if workspace == .tools {
                 diskDevices.start()
@@ -592,9 +599,16 @@ private struct RecoveryView: View {
             }
         case .completed:
             VStack(alignment: .leading, spacing: 10) {
-                Label("Card imaging completed", systemImage: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                Text("Choose whether macOS should remount the card or eject it. The completed image is ready to scan.")
+                Label(
+                    imaging.completionNotice == nil
+                        ? "Card imaging completed"
+                        : "Card imaging completed with unreadable regions",
+                    systemImage: imaging.completionNotice == nil
+                        ? "checkmark.circle.fill"
+                        : "exclamationmark.triangle.fill"
+                )
+                    .foregroundStyle(imaging.completionNotice == nil ? .green : .orange)
+                Text(imaging.completionNotice ?? "Choose whether macOS should remount the card or eject it. The completed image is ready to scan.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                 HStack {

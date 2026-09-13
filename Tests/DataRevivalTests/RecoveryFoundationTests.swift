@@ -3,6 +3,7 @@ import CoreGraphics
 import Darwin
 import DiskArbitration
 import ImageIO
+import Security
 import Testing
 import UniformTypeIdentifiers
 @testable import DataRevival
@@ -331,6 +332,35 @@ struct RecoveryFoundationTests {
         #expect(throws: PrivilegedImagingError.invalidDestination) {
             try changed.validateStructure()
         }
+    }
+
+    @Test("Privileged imaging responses preserve structured operational issues")
+    func privilegedImagingResponseIssues() throws {
+        let response = PrivilegedImagingResponse(
+            outcome: .failed,
+            exitStatus: 1,
+            message: "The destination ran out of space.",
+            issue: .destinationFull
+        )
+        let decoded = try JSONDecoder().decode(
+            PrivilegedImagingResponse.self,
+            from: JSONEncoder().encode(response)
+        )
+        #expect(decoded == response)
+        #expect(decoded.issue?.fallbackMessage.contains("ran out of space") == true)
+
+        let legacyResponse = Data(#"{"outcome":"completed","exitStatus":0}"#.utf8)
+        let legacyDecoded = try JSONDecoder().decode(
+            PrivilegedImagingResponse.self,
+            from: legacyResponse
+        )
+        #expect(legacyDecoded.outcome == .completed)
+        #expect(legacyDecoded.issue == nil)
+        #expect(
+            PrivilegedImagingError.authorizationFailed(errAuthorizationCanceled)
+                .errorDescription ==
+                "Administrator authorization was cancelled. No card data was read."
+        )
     }
 
     @Test("A child imaging process can read an already-open source descriptor")

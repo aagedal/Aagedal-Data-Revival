@@ -61,6 +61,15 @@ private struct ImagingResponse: Codable {
     let outcome: Outcome
     let exitStatus: Int32?
     let message: String?
+    let issue: ImagingIssue?
+}
+
+private enum ImagingIssue: String, Codable {
+    case authorizationDenied
+    case sourceRemoved
+    case destinationFull
+    case readErrors
+    case helperFailure
 }
 
 private enum HelperError: LocalizedError {
@@ -243,23 +252,62 @@ private final class ImagingOperationRegistry: @unchecked Sendable {
                     self.activeCancellationRequested
                 }
                 if wasCancelled {
-                    completion(ImagingResponse(outcome: .cancelled, exitStatus: process.terminationStatus, message: nil))
+                    completion(ImagingResponse(
+                        outcome: .cancelled,
+                        exitStatus: process.terminationStatus,
+                        message: nil,
+                        issue: nil
+                    ))
                 } else if process.terminationStatus == 0 {
-                    completion(ImagingResponse(outcome: .completed, exitStatus: 0, message: nil))
+                    if Self.mapfileContainsBadSectors(at: request.mapPath) {
+                        completion(ImagingResponse(
+                            outcome: .completed,
+                            exitStatus: 0,
+                            message: "GNU ddrescue finished, but the mapfile contains unreadable regions. Keep the mapfile with the image; another resume attempt may recover more data.",
+                            issue: .readErrors
+                        ))
+                    } else {
+                        completion(ImagingResponse(
+                            outcome: .completed,
+                            exitStatus: 0,
+                            message: nil,
+                            issue: nil
+                        ))
+                    }
                 } else {
+                    let failure = Self.classifyProcessFailure(
+                        request: request,
+                        exitStatus: process.terminationStatus
+                    )
                     completion(ImagingResponse(
                         outcome: .failed,
                         exitStatus: process.terminationStatus,
-                        message: "GNU ddrescue stopped with exit status \(process.terminationStatus). The partial image and resume files were preserved."
+                        message: failure.message,
+                        issue: failure.issue
                     ))
                 }
             } catch is CancellationError {
-                completion(ImagingResponse(outcome: .cancelled, exitStatus: nil, message: nil))
+                completion(ImagingResponse(
+                    outcome: .cancelled,
+                    exitStatus: nil,
+                    message: nil,
+                    issue: nil
+                ))
             } catch {
+                let issue: ImagingIssue
+                switch error as? HelperError {
+                case .unauthorized:
+                    issue = .authorizationDenied
+                case .sourceChanged, .invalidSource, .sourceNotRawDevice:
+                    issue = .sourceRemoved
+                case nil, .some:
+                    issue = .helperFailure
+                }
                 completion(ImagingResponse(
                     outcome: .failed,
                     exitStatus: nil,
-                    message: error.localizedDescription
+                    message: error.localizedDescription,
+                    issue: issue
                 ))
             }
         }
@@ -494,6 +542,85 @@ private final class ImagingOperationRegistry: @unchecked Sendable {
                 _ = chown(path, uid, gid)
             }
         }
+    }
+
+    private static func classifyProcessFailure(
+        request: ImagingRequest,
+        exitStatus: Int32
+    ) -> (issue: ImagingIssue, message: String) {
+        let log = logTail(at: request.runnerLogPath).lowercased()
+        if log.contains("no space left on device") ||
+            log.contains("disk full") ||
+            log.contains("not enough space") {
+            return (
+                .destinationFull,
+                "The destination ran out of space while imaging. The partial image and resume files were preserved; free enough space, then check the existing image for resume."
+            )
+        }
+
+        let currentSource = DeviceResolver.currentDevice(bsdName: request.source.bsdName)
+        if currentSource?.matches(request.source) != true ||
+            log.contains("no such device") ||
+            log.contains("device not configured") ||
+            log.contains("input file disappeared") {
+            return (
+                .sourceRemoved,
+                "The recovery source was removed or changed while imaging. The partial image and resume files were preserved; reconnect the original card, then check the existing image for resume."
+            )
+        }
+
+        if mapfileContainsBadSectors(at: request.mapPath) ||
+            log.contains("input/output error") ||
+            log.contains("read error") ||
+            log.contains("error reading") {
+            return (
+                .readErrors,
+                "GNU ddrescue stopped after encountering read errors. The partial image and mapfile were preserved; retrying the existing image may recover more data."
+            )
+        }
+
+        return (
+            .helperFailure,
+            "The privileged imaging helper stopped GNU ddrescue with exit status \(exitStatus). The partial image, mapfile, and logs were preserved for diagnosis and resume."
+        )
+    }
+
+    private static func logTail(at path: String, maximumByteCount: Int = 64 * 1_024) -> String {
+        guard let handle = try? FileHandle(forReadingFrom: URL(fileURLWithPath: path)) else {
+            return ""
+        }
+        defer { try? handle.close() }
+        let end = (try? handle.seekToEnd()) ?? 0
+        if end > UInt64(maximumByteCount) {
+            try? handle.seek(toOffset: end - UInt64(maximumByteCount))
+        } else {
+            try? handle.seek(toOffset: 0)
+        }
+        return String(decoding: (try? handle.readToEnd()) ?? Data(), as: UTF8.self)
+    }
+
+    private static func mapfileContainsBadSectors(at path: String) -> Bool {
+        guard let contents = try? String(
+            contentsOf: URL(fileURLWithPath: path),
+            encoding: .utf8
+        ) else {
+            return false
+        }
+        var foundStatusLine = false
+        for line in contents.split(whereSeparator: \.isNewline) {
+            let trimmed = line.drop(while: \.isWhitespace)
+            guard !trimmed.isEmpty, trimmed.first != "#" else { continue }
+            let fields = line.split(whereSeparator: \.isWhitespace)
+            guard fields.count == 3 else { continue }
+            if !foundStatusLine {
+                foundStatusLine = true
+                continue
+            }
+            if fields[2] == "-" {
+                return true
+            }
+        }
+        return false
     }
 }
 
