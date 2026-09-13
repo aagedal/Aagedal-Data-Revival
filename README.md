@@ -24,6 +24,13 @@ Package-manager engines are a debug-only convenience. Release builds resolve `ph
 
 Production source inputs are pinned to PhotoRec 7.2 and GNU ddrescue 1.30. On an Apple silicon development Mac, `Scripts/build-recovery-engines.sh` verifies the upstream source hashes and produces audited arm64-only binaries plus their license and corresponding-source artifacts. See [Recovery engine versions](Documentation/RecoveryEngineVersions.md) for the selection and build details.
 
+Release candidates will be distributed as signed, notarized direct downloads through
+[GitHub Releases](https://github.com/aagedal/Aagedal-Data-Revival/releases); the app
+does not contain an automatic updater in 1.0. Before publishing, follow the
+[release checklist](Documentation/ReleaseChecklist.md). See the
+[changelog](CHANGELOG.md), [support policy](SUPPORT.md), and
+[privacy statement](PRIVACY.md) for user-facing release information.
+
 The versioned recovery-quality benchmark uses non-sensitive synthetic JPEG fixtures from genuinely quick-formatted FAT32 and exFAT images, plus deterministic fragmented, truncated, corrupt-metadata, and overwritten cases. Its release gate distinguishes intact byte-exact recovery from byte-exact carving of already damaged data; a filename or decodable preview is never counted as successful recovery. See [Recovery-quality benchmark](Documentation/RecoveryQualityBenchmark.md) for the measured support matrix, fixture-generation procedure, known limitations, and remaining camera-RAW scenarios.
 
 Release builds require those generated products and embed the two engines under `Contents/Helpers`; they fail closed when the products are absent. Exact upstream licenses, author notices, the reviewed build lock, checksums, and the corresponding source archives are embedded under `Contents/Resources/RecoveryEngines`, so every binary release carries its own engine sources. Signed builds sign the engines before Xcode signs the outer app. Debug builds can still use the explicitly documented package-manager fallback when local engine products have not been built.
