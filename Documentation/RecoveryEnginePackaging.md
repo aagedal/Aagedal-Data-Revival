@@ -21,6 +21,7 @@ Aagedal Data Revival.app/
         Licenses/
         Notices/
         SourceArchives/
+        SourceBuildScripts/
         SourcePatches/
         RecoveryEngines.lock.json
         SHA256SUMS
@@ -33,9 +34,9 @@ libraries and executables before signing the outer app. Prefer reproducible
 universal builds whose dependency set is known over copying binaries from a
 developer's package-manager prefix.
 
-The engine binaries, exact upstream license texts and author notices, build
-lock, checksums, corresponding source archives, and reviewed source patches ship together in every
-release app. This makes the source used for the bundled binaries available
+The engine binaries, exact upstream license texts, author and modification
+notices, build lock, checksums, corresponding source archives, build script,
+and reviewed source patches ship together in every release app. This makes the source used for the bundled binaries available
 offline from the application itself rather than relying on a future download
 or a time-limited written offer. Per-file copyright notices and complete build
 inputs are retained in those unmodified source archives. In particular,
@@ -81,7 +82,7 @@ runtime-weakening entitlement, or links to an absolute
 dependency outside macOS system locations. It permits the system Swift runtime
 path but rejects other external `LC_RPATH` entries, validates the
 absence of the obsolete LaunchDaemon/helper payload, verifies every packaged engine artifact against the build
-checksums, requires both corresponding source archives and the reviewed ddrescue source patch, and verifies the outer
+checksums, requires both corresponding source archives, the build script, modification notice, and the reviewed ddrescue source patch, and verifies the outer
 app's nested signature. `SHA256SUMS` retains the reproducible pre-sign engine
 digests; the audit validates shipped executable identity with code signatures
 because signing necessarily changes their Mach-O bytes. All non-code artifacts

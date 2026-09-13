@@ -95,7 +95,12 @@ Benchmark with known original files and byte hashes. Include quick-formatted FAT
 
 ## Open-source and distribution decisions
 
-PhotoRec is GPL-2.0-or-later. Review the licenses and source-distribution obligations for the exact engine versions and bundled dependencies before selecting the app's license and distributing binaries. License and distribution packaging are not yet decided.
+PhotoRec and GNU ddrescue are GPL-2.0-or-later. Release builds include their
+exact upstream sources, licenses, notices, the reviewed ddrescue patch, and the
+engine build script. The repository currently contains the GPLv3 license text;
+the copyright holder must still approve an explicit GPLv3-only or
+GPLv3-or-later app declaration before release. See the
+[version 1.0 license review](Documentation/LicenseReview.md).
 
 Target a signed and notarized direct-download macOS application. Recovery engines and any non-system libraries must be bundled and nested-code signed; a release audit now rejects missing engines, architecture mismatches, invalid signatures, and external dynamic-library paths.
 

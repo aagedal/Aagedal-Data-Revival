@@ -143,10 +143,12 @@ required_artifacts=(
     Licenses/GNU-ddrescue-COPYING.txt
     Notices/PhotoRec-AUTHORS.txt
     Notices/GNU-ddrescue-AUTHORS.txt
+    Notices/GNU-ddrescue-MODIFICATIONS.txt
     RecoveryEngines.lock.json
     SHA256SUMS
     "SourceArchives/$photorec_archive_name"
     "SourceArchives/$ddrescue_archive_name"
+    SourceBuildScripts/build-recovery-engines.sh
     "SourcePatches/$ddrescue_patch_name"
 )
 for artifact in "${required_artifacts[@]}"; do

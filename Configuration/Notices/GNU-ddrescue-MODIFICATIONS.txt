@@ -1,0 +1,12 @@
+GNU ddrescue 1.30 modifications in Aagedal Data Revival
+
+Modified on 2026-09-13 by the Aagedal Data Revival project.
+
+The file main.cc is changed by ddrescue-inherited-stdin.patch. When the input
+path is /dev/fd/0, the change duplicates the descriptor that the macOS
+application already opened read-only instead of reopening that path. No other
+GNU ddrescue source file is modified.
+
+The complete, unmodified upstream source archive, the exact patch, and the
+build script used to apply it and compile the distributed executable accompany
+the binary under Contents/Resources/RecoveryEngines.

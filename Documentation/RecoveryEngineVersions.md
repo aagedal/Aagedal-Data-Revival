@@ -26,10 +26,9 @@ macOS already authorized instead of reopening it and triggering another device
 permission check. The original archive and the exact applied patch are both
 included with the app.
 
-This selection is an engineering pin, not the final license approval. Both
-engines are GPL-2.0-or-later and the repository currently carries GPLv3, but all
-distribution obligations and the complete compatibility review must still pass
-the licensing release gate.
+Both engines are GPL-2.0-or-later. The inventory, separate-program analysis,
+corresponding-source controls, and remaining app-license decision are recorded
+in `Documentation/LicenseReview.md`.
 
 ## Reproducible build
 
@@ -49,8 +48,9 @@ first argument to compare independent builds. Set
 
 Generated output is intentionally not committed. The Xcode packaging phase
 copies `Helpers/photorec` and `Helpers/ddrescue` into the app and embeds the
-exact upstream licenses, author notices, build lock, checksums, unmodified
-upstream archives, and applied source patches under `Contents/Resources/RecoveryEngines`.
+exact upstream licenses, author and modification notices, build lock,
+checksums, build script, unmodified upstream archives, and applied source
+patches under `Contents/Resources/RecoveryEngines`.
 
 As a reproducibility check on 2026-09-13, two clean builds in separate temporary
 directories produced byte-identical executables with Apple clang 21.0.0 and the

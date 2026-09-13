@@ -24,6 +24,7 @@ source_artifacts=(
     Licenses/GNU-ddrescue-COPYING.txt
     Notices/PhotoRec-AUTHORS.txt
     Notices/GNU-ddrescue-AUTHORS.txt
+    Notices/GNU-ddrescue-MODIFICATIONS.txt
     RecoveryEngines.lock.json
     SHA256SUMS
 )
@@ -43,6 +44,7 @@ ddrescue_patch_name="$(/usr/bin/plutil -extract engines.ddrescue.patches.0.fileN
 source_artifacts+=(
     "SourceArchives/$photorec_archive_name"
     "SourceArchives/$ddrescue_archive_name"
+    SourceBuildScripts/build-recovery-engines.sh
     "SourcePatches/$ddrescue_patch_name"
 )
 
@@ -147,11 +149,15 @@ for tool in "${required_tools[@]}"; do
 done
 
 /bin/mkdir -p "$destination_artifacts"
-for directory in Licenses Notices SourceArchives SourcePatches; do
+for directory in Licenses Notices SourceArchives SourceBuildScripts SourcePatches; do
     /bin/mkdir -p "$destination_artifacts/$directory"
 done
 for artifact in "${source_artifacts[@]}"; do
-    /usr/bin/install -m 0644 "$products_root/$artifact" "$destination_artifacts/$artifact"
+    permissions=0644
+    if [[ "$artifact" == SourceBuildScripts/* ]]; then
+        permissions=0755
+    fi
+    /usr/bin/install -m "$permissions" "$products_root/$artifact" "$destination_artifacts/$artifact"
 done
 
 echo "Embedded pinned arm64 recovery engines and corresponding distribution artifacts"

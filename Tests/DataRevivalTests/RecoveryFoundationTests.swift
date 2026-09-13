@@ -554,6 +554,126 @@ struct RecoveryFoundationTests {
         #expect(record.source.matches(source))
     }
 
+    @Test("Cancelling card imaging preserves its partial image and resume sidecars")
+    func cardImagingCancellationPreservesResumeFiles() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Data Revival Cancellation \(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let source = try #require(makeStorageDevice(bsdName: "disk7", byteCount: 64_000))
+        let plan = try CardImagingPlan.prepare(
+            sourceDevice: source,
+            imageURL: root.appendingPathComponent("partial card image.img"),
+            destinationWholeDiskBSDName: "disk2",
+            availableCapacity: 128_000
+        )
+        let partialImage = Data(repeating: 0x5a, count: 16_000)
+        let partialMap = Data(interruptedMapfile(byteCount: source.byteCount).utf8)
+        try partialImage.write(to: plan.imageURL)
+        try partialMap.write(to: plan.mapURL)
+
+        let command = DDRescueCommand(
+            executableURL: URL(fileURLWithPath: "/bin/sleep"),
+            arguments: ["5"],
+            currentDirectoryURL: root,
+            runnerLogURL: plan.runnerLogURL,
+            resumeRecordURL: plan.resumeRecordURL,
+            resumeRecord: plan.resumeRecord,
+            mapURL: plan.mapURL,
+            sourceByteCount: source.byteCount
+        )
+        let runner = DDRescueRunner()
+        let imagingTask = Task {
+            try await runner.image(command: command)
+        }
+
+        for _ in 0..<200 where !FileManager.default.fileExists(atPath: plan.runnerLogURL.path) {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        #expect(FileManager.default.fileExists(atPath: plan.runnerLogURL.path))
+        try await Task.sleep(for: .milliseconds(50))
+        imagingTask.cancel()
+
+        do {
+            try await imagingTask.value
+            Issue.record("Expected card imaging cancellation to throw CancellationError")
+        } catch is CancellationError {
+            // Expected: the runner stops its child process and reports task cancellation.
+        } catch {
+            Issue.record("Expected CancellationError, received \(error)")
+        }
+
+        #expect(try Data(contentsOf: plan.imageURL) == partialImage)
+        #expect(try Data(contentsOf: plan.mapURL) == partialMap)
+        #expect(FileManager.default.fileExists(atPath: plan.runnerLogURL.path))
+        let record = try JSONDecoder().decode(
+            CardImagingResumeRecord.self,
+            from: Data(contentsOf: plan.resumeRecordURL)
+        )
+        #expect(record == plan.resumeRecord)
+    }
+
+    @Test("A full imaging destination is diagnosed with resumable guidance")
+    func cardImagingDiagnosesFullDestination() {
+        let message = ImagingFailureDiagnosis.message(
+            log: "ddrescue: write error: No space left on device",
+            sourceStillMatches: true,
+            mapSnapshot: nil,
+            exitStatus: 1
+        )
+
+        #expect(message.contains("destination ran out of space"))
+        #expect(message.contains("resume files were preserved"))
+    }
+
+    @Test("A removed imaging source is diagnosed with reconnection guidance")
+    func cardImagingDiagnosesRemovedSource() {
+        let message = ImagingFailureDiagnosis.message(
+            log: "",
+            sourceStillMatches: false,
+            mapSnapshot: nil,
+            exitStatus: 1
+        )
+
+        #expect(message.contains("source was removed or changed"))
+        #expect(message.contains("reconnect the original card"))
+    }
+
+    @Test("Unreadable imaging regions are diagnosed from the mapfile")
+    func cardImagingDiagnosesReadErrors() {
+        let snapshot = DDRescueMapSnapshot(
+            currentPosition: 32_000,
+            currentStatus: "-",
+            currentPass: 1,
+            rescuedByteCount: 32_000,
+            badSectorByteCount: 4_000,
+            pendingByteCount: 28_000
+        )
+        let message = ImagingFailureDiagnosis.message(
+            log: "",
+            sourceStillMatches: true,
+            mapSnapshot: snapshot,
+            exitStatus: 1
+        )
+
+        #expect(message.contains("read errors"))
+        #expect(message.contains("mapfile were preserved"))
+    }
+
+    @Test("An unknown imaging-engine failure retains diagnostic guidance")
+    func cardImagingDiagnosesUnknownEngineFailure() {
+        let message = ImagingFailureDiagnosis.message(
+            log: "unexpected engine failure",
+            sourceStillMatches: true,
+            mapSnapshot: nil,
+            exitStatus: 9
+        )
+
+        #expect(message.contains("exit status 9"))
+        #expect(message.contains("log were preserved"))
+    }
+
     @Test("An interrupted card image resumes only with its original source")
     func cardImageResumeProtection() async throws {
         let root = FileManager.default.temporaryDirectory

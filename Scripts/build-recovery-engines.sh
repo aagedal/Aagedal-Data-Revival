@@ -33,6 +33,8 @@ ddrescue_sha256="$(read_manifest engines.ddrescue.sourceSHA256)"
 ddrescue_patch_name="$(read_manifest engines.ddrescue.patches.0.fileName)"
 ddrescue_patch_sha256="$(read_manifest engines.ddrescue.patches.0.sha256)"
 ddrescue_patch="$repo_root/Configuration/Patches/$ddrescue_patch_name"
+ddrescue_modification_notice="$repo_root/Configuration/Notices/GNU-ddrescue-MODIFICATIONS.txt"
+build_script="$repo_root/Scripts/build-recovery-engines.sh"
 
 if [[ "$target_architecture" != "arm64" ]]; then
     echo "error: the 1.0 engine manifest must target arm64" >&2
@@ -64,6 +66,10 @@ fetch_source "$ddrescue_url" "$ddrescue_sha256" "$ddrescue_archive"
 if [[ ! -f "$ddrescue_patch" ]] ||
    ! echo "$ddrescue_patch_sha256  $ddrescue_patch" | shasum -a 256 -c - >/dev/null; then
     echo "error: reviewed ddrescue patch is missing or has changed: $ddrescue_patch" >&2
+    exit 1
+fi
+if [[ ! -f "$ddrescue_modification_notice" || ! -f "$build_script" ]]; then
+    echo "error: recovery-engine modification notice or build script is missing" >&2
     exit 1
 fi
 
@@ -125,6 +131,7 @@ mkdir -p \
     "$product_root/Licenses" \
     "$product_root/Notices" \
     "$product_root/SourceArchives" \
+    "$product_root/SourceBuildScripts" \
     "$product_root/SourcePatches"
 /usr/bin/install -m 0755 "$photorec_source/src/photorec" "$product_root/Helpers/photorec"
 /usr/bin/install -m 0755 "$ddrescue_source/ddrescue" "$product_root/Helpers/ddrescue"
@@ -132,8 +139,10 @@ mkdir -p \
 /usr/bin/install -m 0644 "$ddrescue_source/COPYING" "$product_root/Licenses/GNU-ddrescue-COPYING.txt"
 /usr/bin/install -m 0644 "$photorec_source/AUTHORS" "$product_root/Notices/PhotoRec-AUTHORS.txt"
 /usr/bin/install -m 0644 "$ddrescue_source/AUTHORS" "$product_root/Notices/GNU-ddrescue-AUTHORS.txt"
+/usr/bin/install -m 0644 "$ddrescue_modification_notice" "$product_root/Notices/GNU-ddrescue-MODIFICATIONS.txt"
 /usr/bin/install -m 0644 "$photorec_archive" "$product_root/SourceArchives/$photorec_archive_name"
 /usr/bin/install -m 0644 "$ddrescue_archive" "$product_root/SourceArchives/$ddrescue_archive_name"
+/usr/bin/install -m 0755 "$build_script" "$product_root/SourceBuildScripts/build-recovery-engines.sh"
 /usr/bin/install -m 0644 "$ddrescue_patch" "$product_root/SourcePatches/$ddrescue_patch_name"
 /usr/bin/install -m 0644 "$manifest" "$product_root/RecoveryEngines.lock.json"
 
@@ -173,9 +182,11 @@ audit_binary "$product_root/Helpers/ddrescue"
         Licenses/GNU-ddrescue-COPYING.txt \
         Notices/PhotoRec-AUTHORS.txt \
         Notices/GNU-ddrescue-AUTHORS.txt \
+        Notices/GNU-ddrescue-MODIFICATIONS.txt \
         RecoveryEngines.lock.json \
         SourceArchives/"$photorec_archive_name" \
         SourceArchives/"$ddrescue_archive_name" \
+        SourceBuildScripts/build-recovery-engines.sh \
         SourcePatches/"$ddrescue_patch_name" > SHA256SUMS
 )
 

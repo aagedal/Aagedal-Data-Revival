@@ -72,7 +72,10 @@ or recovered the intact original.
 Representative, redistributable camera RAW originals are still needed for
 Canon, Nikon, Sony, Fujifilm, Olympus, Panasonic, Pentax, and Sigma. Until those
 fixtures pass, the benchmark makes no byte-exact recovery claim for those
-families. Cancellation/resume, device removal, read errors, and destination
-exhaustion also remain to be exercised end-to-end before the complete P0
+families. The automated foundation suite verifies that cancelling the imaging
+process preserves its partial image and resume sidecars, that a resume is bound
+to the original source, and that removal, read-error, and destination-exhaustion
+failures produce the intended recovery guidance. Those scenarios still need to
+be exercised end-to-end with disposable physical cards before the complete P0
 quality gate can be marked finished. Paths containing spaces are exercised by
 every benchmark run.

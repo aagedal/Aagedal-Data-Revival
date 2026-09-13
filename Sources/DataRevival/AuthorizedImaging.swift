@@ -422,22 +422,42 @@ final class AuthorizedCardImagingClient: @unchecked Sendable {
     }
 
     private func imagingFailureMessage(plan: CardImagingPlan, exitStatus: Int32) -> String {
-        let log = ((try? String(contentsOf: plan.runnerLogURL, encoding: .utf8)) ?? "")
-            .lowercased()
+        let log = (try? String(contentsOf: plan.runnerLogURL, encoding: .utf8)) ?? ""
+        let sourceStillMatches = DiskIdentityResolver.currentDevice(
+            bsdName: plan.sourceDevice.bsdName
+        )?.hasSameImagingIdentity(as: plan.sourceDevice) == true
+        let mapSnapshot = plan.mapURL.flatMapSnapshot(
+            expectedByteCount: plan.sourceDevice.byteCount
+        )
+        return ImagingFailureDiagnosis.message(
+            log: log,
+            sourceStillMatches: sourceStillMatches,
+            mapSnapshot: mapSnapshot,
+            exitStatus: exitStatus
+        )
+    }
+}
+
+enum ImagingFailureDiagnosis {
+    static func message(
+        log: String,
+        sourceStillMatches: Bool,
+        mapSnapshot: DDRescueMapSnapshot?,
+        exitStatus: Int32
+    ) -> String {
+        let log = log.lowercased()
         if log.contains("no space left on device") ||
             log.contains("disk full") ||
             log.contains("not enough space") {
             return "The destination ran out of space while imaging. The partial image and resume files were preserved; free enough space, then check the existing image for resume."
         }
-        if DiskIdentityResolver.currentDevice(bsdName: plan.sourceDevice.bsdName)?
-            .hasSameImagingIdentity(as: plan.sourceDevice) != true ||
+        if !sourceStillMatches ||
             log.contains("no such device") ||
             log.contains("device not configured") ||
             log.contains("input file disappeared") {
             return "The recovery source was removed or changed while imaging. The partial image and resume files were preserved; reconnect the original card, then check the existing image for resume."
         }
-        if plan.mapURL.flatMapSnapshot(expectedByteCount: plan.sourceDevice.byteCount)?
-            .badSectorByteCount ?? 0 > 0 ||
+        if mapSnapshot?.badSectorByteCount ?? 0 > 0 ||
             log.contains("input/output error") ||
             log.contains("read error") ||
             log.contains("error reading") {
