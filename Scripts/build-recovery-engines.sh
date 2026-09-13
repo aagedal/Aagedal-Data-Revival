@@ -114,11 +114,14 @@ product_root="$build_root/product"
 mkdir -p \
     "$product_root/Helpers" \
     "$product_root/Licenses" \
+    "$product_root/Notices" \
     "$product_root/SourceArchives"
 /usr/bin/install -m 0755 "$photorec_source/src/photorec" "$product_root/Helpers/photorec"
 /usr/bin/install -m 0755 "$ddrescue_source/ddrescue" "$product_root/Helpers/ddrescue"
 /usr/bin/install -m 0644 "$photorec_source/COPYING" "$product_root/Licenses/PhotoRec-COPYING.txt"
 /usr/bin/install -m 0644 "$ddrescue_source/COPYING" "$product_root/Licenses/GNU-ddrescue-COPYING.txt"
+/usr/bin/install -m 0644 "$photorec_source/AUTHORS" "$product_root/Notices/PhotoRec-AUTHORS.txt"
+/usr/bin/install -m 0644 "$ddrescue_source/AUTHORS" "$product_root/Notices/GNU-ddrescue-AUTHORS.txt"
 /usr/bin/install -m 0644 "$photorec_archive" "$product_root/SourceArchives/$photorec_archive_name"
 /usr/bin/install -m 0644 "$ddrescue_archive" "$product_root/SourceArchives/$ddrescue_archive_name"
 /usr/bin/install -m 0644 "$manifest" "$product_root/RecoveryEngines.lock.json"
@@ -155,6 +158,11 @@ audit_binary "$product_root/Helpers/ddrescue"
     shasum -a 256 \
         Helpers/photorec \
         Helpers/ddrescue \
+        Licenses/PhotoRec-COPYING.txt \
+        Licenses/GNU-ddrescue-COPYING.txt \
+        Notices/PhotoRec-AUTHORS.txt \
+        Notices/GNU-ddrescue-AUTHORS.txt \
+        RecoveryEngines.lock.json \
         SourceArchives/"$photorec_archive_name" \
         SourceArchives/"$ddrescue_archive_name" > SHA256SUMS
 )

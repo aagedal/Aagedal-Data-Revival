@@ -16,6 +16,13 @@ Aagedal Data Revival.app/
     Helpers/
       photorec
       ddrescue
+    Resources/
+      RecoveryEngines/
+        Licenses/
+        Notices/
+        SourceArchives/
+        RecoveryEngines.lock.json
+        SHA256SUMS
 ```
 
 If an engine needs non-system dynamic libraries, copy them into a standard
@@ -25,10 +32,14 @@ libraries and executables before signing the outer app. Prefer reproducible
 universal builds whose dependency set is known over copying binaries from a
 developer's package-manager prefix.
 
-The engine binaries, their build inputs, license texts, copyright notices, and
-the corresponding source offer/source archives must be versioned and reviewed
-before distribution. In particular, PhotoRec's GPL terms affect how the final
-application and its source are distributed.
+The engine binaries, exact upstream license texts and author notices, build
+lock, checksums, and corresponding source archives ship together in every
+release app. This makes the source used for the bundled binaries available
+offline from the application itself rather than relying on a future download
+or a time-limited written offer. Per-file copyright notices and complete build
+inputs are retained in those unmodified source archives. In particular,
+PhotoRec's GPL terms affect how the final application and its source are
+distributed.
 
 The reviewed source versions and checksums are locked in
 `Configuration/RecoveryEngines.lock.json`. Build and audit the arm64 engines
@@ -54,9 +65,14 @@ Scripts/audit-app-bundle.sh "/path/to/Aagedal Data Revival.app"
 ```
 
 The audit fails when the app or bundled native code is not arm64-only, a
-required engine is absent, is not executable, is not signed, or links to an absolute dependency
-outside macOS system locations. It also rejects external `LC_RPATH` entries and
-verifies the outer app's nested signature.
+required engine is absent, is not executable, is not signed, or links to an
+absolute dependency outside macOS system locations. It also rejects external
+`LC_RPATH` entries, verifies every packaged engine artifact against the build
+checksums, requires both corresponding source archives, and verifies the outer
+app's nested signature. `SHA256SUMS` retains the reproducible pre-sign engine
+digests; the audit validates shipped executable identity with code signatures
+because signing necessarily changes their Mach-O bytes. All non-code artifacts
+must still match `SHA256SUMS` byte for byte.
 
 This audit is intentionally a release check, separate from embedding. The
 embedding phase repeats architecture and dependency checks so a local

@@ -9,6 +9,7 @@ fi
 
 app="$1"
 helpers="$app/Contents/Helpers"
+engine_artifacts="$app/Contents/Resources/RecoveryEngines"
 bundle_executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")"
 main_executable="$app/Contents/MacOS/$bundle_executable"
 required_tools=(photorec ddrescue)
@@ -79,6 +80,51 @@ for tool in "${required_tools[@]}"; do
     codesign --verify --strict --verbose=2 "$binary"
 done
 
+if [[ ! -f "$engine_artifacts/RecoveryEngines.lock.json" || -L "$engine_artifacts/RecoveryEngines.lock.json" ]]; then
+    echo "error: recovery-engine lockfile is missing from the app resources" >&2
+    exit 1
+fi
+
+photorec_archive_name="$(/usr/bin/plutil -extract engines.photorec.sourceArchiveName raw -o - "$engine_artifacts/RecoveryEngines.lock.json")"
+ddrescue_archive_name="$(/usr/bin/plutil -extract engines.ddrescue.sourceArchiveName raw -o - "$engine_artifacts/RecoveryEngines.lock.json")"
+required_artifacts=(
+    Licenses/PhotoRec-COPYING.txt
+    Licenses/GNU-ddrescue-COPYING.txt
+    Notices/PhotoRec-AUTHORS.txt
+    Notices/GNU-ddrescue-AUTHORS.txt
+    RecoveryEngines.lock.json
+    SHA256SUMS
+    "SourceArchives/$photorec_archive_name"
+    "SourceArchives/$ddrescue_archive_name"
+)
+for artifact in "${required_artifacts[@]}"; do
+    if [[ ! -f "$engine_artifacts/$artifact" || -L "$engine_artifacts/$artifact" ]]; then
+        echo "error: required recovery-engine distribution artifact is missing: $artifact" >&2
+        exit 1
+    fi
+done
+
+while read -r expected relative_path; do
+    relative_path="${relative_path#\*}"
+    case "$relative_path" in
+        Helpers/*)
+            # Signing adds a Mach-O code-signature load command, so the shipped
+            # executable cannot retain its pre-sign reproducible-build digest.
+            # The loop above verifies signed code; SHA256SUMS retains its
+            # original build-product digest for provenance.
+            continue
+            ;;
+        *)
+            packaged_path="$engine_artifacts/$relative_path"
+            ;;
+    esac
+    actual="$(/usr/bin/shasum -a 256 "$packaged_path" | /usr/bin/awk '{print $1}')"
+    if [[ "$actual" != "$expected" ]]; then
+        echo "error: packaged recovery-engine artifact checksum mismatch: $relative_path" >&2
+        exit 1
+    fi
+done < "$engine_artifacts/SHA256SUMS"
+
 while IFS= read -r candidate; do
     if [[ "$(file "$candidate")" == *Mach-O* ]]; then
         audit_architecture "$candidate"
@@ -88,4 +134,4 @@ while IFS= read -r candidate; do
 done < <(find "$helpers" "$app/Contents/Frameworks" -type f 2>/dev/null || true)
 
 codesign --verify --deep --strict --verbose=2 "$app"
-echo "Bundle audit passed: recovery engines are bundled, signed, architecture-compatible, and free of non-system absolute dependencies."
+echo "Bundle audit passed: signed recovery engines and checksum-verified licenses, notices, build lock, and corresponding sources are complete."

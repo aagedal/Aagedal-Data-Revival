@@ -2,7 +2,7 @@
 
 A proposed open-source, native macOS app for recovering files from accidentally formatted camera cards.
 
-Status: runnable SwiftUI prototype with experimental PhotoRec-backed JPEG and common camera RAW scans for raw disk images. Physical-card discovery plus new-image and resume safety planning are available; privileged card imaging and production engine packaging are not connected yet. Video recovery and claims of full camera RAW integrity are explicitly outside the 1.0 scope.
+Status: runnable SwiftUI prototype with experimental PhotoRec-backed JPEG and common camera RAW scans for raw disk images. Physical-card discovery plus new-image and resume safety planning are available, and production recovery engines and their corresponding sources are packaged for Release builds; privileged card imaging is not connected yet. Video recovery and claims of full camera RAW integrity are explicitly outside the 1.0 scope.
 
 ## Run the prototype
 
@@ -22,7 +22,7 @@ Package-manager engines are a debug-only convenience. Release builds resolve `ph
 
 Production source inputs are pinned to PhotoRec 7.2 and GNU ddrescue 1.30. On an Apple silicon development Mac, `Scripts/build-recovery-engines.sh` verifies the upstream source hashes and produces audited arm64-only binaries plus their license and corresponding-source artifacts. See [Recovery engine versions](Documentation/RecoveryEngineVersions.md) for the selection and build details.
 
-Release builds require those generated products and embed the two engines under `Contents/Helpers`; they fail closed when the products are absent. Signed builds sign the engines before Xcode signs the outer app. Debug builds can still use the explicitly documented package-manager fallback when local engine products have not been built.
+Release builds require those generated products and embed the two engines under `Contents/Helpers`; they fail closed when the products are absent. Exact upstream licenses, author notices, the reviewed build lock, checksums, and the corresponding source archives are embedded under `Contents/Resources/RecoveryEngines`, so every binary release carries its own engine sources. Signed builds sign the engines before Xcode signs the outer app. Debug builds can still use the explicitly documented package-manager fallback when local engine products have not been built.
 
 This is an integration spike, not a production recovery release. It currently performs a whole-image JPEG carve with basic decode and end-marker validation. Use disposable test images and copies of owned media.
 

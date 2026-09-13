@@ -19,6 +19,15 @@ done
 products_root="${RECOVERY_ENGINE_PRODUCTS_DIR:-$SRCROOT/Build/RecoveryEngines}"
 source_helpers="$products_root/Helpers"
 destination_helpers="$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Helpers"
+source_artifacts=(
+    Licenses/PhotoRec-COPYING.txt
+    Licenses/GNU-ddrescue-COPYING.txt
+    Notices/PhotoRec-AUTHORS.txt
+    Notices/GNU-ddrescue-AUTHORS.txt
+    RecoveryEngines.lock.json
+    SHA256SUMS
+)
+destination_artifacts="$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Resources/RecoveryEngines"
 required_tools=(photorec ddrescue)
 
 missing_tools=()
@@ -28,15 +37,46 @@ for tool in "${required_tools[@]}"; do
     fi
 done
 
-if (( ${#missing_tools[@]} > 0 )); then
+photorec_archive_name="$(/usr/bin/plutil -extract engines.photorec.sourceArchiveName raw -o - "$SRCROOT/Configuration/RecoveryEngines.lock.json")"
+ddrescue_archive_name="$(/usr/bin/plutil -extract engines.ddrescue.sourceArchiveName raw -o - "$SRCROOT/Configuration/RecoveryEngines.lock.json")"
+source_artifacts+=(
+    "SourceArchives/$photorec_archive_name"
+    "SourceArchives/$ddrescue_archive_name"
+)
+
+missing_artifacts=()
+for artifact in "${source_artifacts[@]}"; do
+    if [[ ! -f "$products_root/$artifact" || -L "$products_root/$artifact" ]]; then
+        missing_artifacts+=("$artifact")
+    fi
+done
+
+if (( ${#missing_tools[@]} > 0 || ${#missing_artifacts[@]} > 0 )); then
     if [[ "$CONFIGURATION" != "Release" ]]; then
-        echo "warning: recovery engines are not built; Debug will use a development install when available"
+        echo "warning: complete recovery-engine products are not built; Debug will use a development install when available"
         exit 0
     fi
 
-    echo "error: Release requires pinned recovery engines at $source_helpers" >&2
-    echo "error: missing regular executable(s): ${missing_tools[*]}" >&2
+    echo "error: Release requires complete pinned recovery-engine products at $products_root" >&2
+    if (( ${#missing_tools[@]} > 0 )); then
+        echo "error: missing regular executable(s): ${missing_tools[*]}" >&2
+    fi
+    if (( ${#missing_artifacts[@]} > 0 )); then
+        echo "error: missing license/source artifact(s): ${missing_artifacts[*]}" >&2
+    fi
     echo "error: run Scripts/build-recovery-engines.sh or set RECOVERY_ENGINE_PRODUCTS_DIR" >&2
+    exit 1
+fi
+
+if ! /usr/bin/cmp -s \
+    "$SRCROOT/Configuration/RecoveryEngines.lock.json" \
+    "$products_root/RecoveryEngines.lock.json"; then
+    echo "error: recovery-engine products were not built from the reviewed lockfile" >&2
+    exit 1
+fi
+
+if ! (cd "$products_root" && /usr/bin/shasum -a 256 -c SHA256SUMS); then
+    echo "error: recovery-engine product checksums do not match SHA256SUMS" >&2
     exit 1
 fi
 
@@ -104,4 +144,12 @@ for tool in "${required_tools[@]}"; do
     fi
 done
 
-echo "Embedded pinned arm64 recovery engines in $destination_helpers"
+/bin/mkdir -p "$destination_artifacts"
+for directory in Licenses Notices SourceArchives; do
+    /bin/mkdir -p "$destination_artifacts/$directory"
+done
+for artifact in "${source_artifacts[@]}"; do
+    /usr/bin/install -m 0644 "$products_root/$artifact" "$destination_artifacts/$artifact"
+done
+
+echo "Embedded pinned arm64 recovery engines and corresponding distribution artifacts"
