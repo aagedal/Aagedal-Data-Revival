@@ -11,11 +11,16 @@ final class RecoveryViewModel: ObservableObject {
     @Published var errorMessage: String?
 
     private let store: RecoverySessionStore
-    private var runner: PhotoRecRunner?
+    private let runnerFactory: @Sendable () -> any PhotoRecRunning
+    private var runner: (any PhotoRecRunning)?
     private var scanTask: Task<Void, Never>?
 
-    init(store: RecoverySessionStore = .live) {
+    init(
+        store: RecoverySessionStore = .live,
+        runnerFactory: @escaping @Sendable () -> any PhotoRecRunning = { PhotoRecRunner() }
+    ) {
         self.store = store
+        self.runnerFactory = runnerFactory
     }
 
     func loadSessions() {
@@ -54,7 +59,7 @@ final class RecoveryViewModel: ObservableObject {
                 session = created
                 activeSession = created
 
-                let runner = PhotoRecRunner()
+                let runner = runnerFactory()
                 self.runner = runner
                 let command = PhotoRecCommand.scan(
                     executableURL: installation.executableURL,

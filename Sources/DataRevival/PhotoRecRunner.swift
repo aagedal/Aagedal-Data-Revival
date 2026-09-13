@@ -80,7 +80,15 @@ enum PhotoRecExecutableLocator {
     }
 }
 
-final class PhotoRecRunner: @unchecked Sendable {
+protocol PhotoRecRunning: AnyObject, Sendable {
+    func recover(
+        command: PhotoRecCommand,
+        onProgress: (@Sendable (RecoveryScanProgress) async -> Void)?
+    ) async throws -> [RecoveredFile]
+    func cancel()
+}
+
+final class PhotoRecRunner: PhotoRecRunning, @unchecked Sendable {
     enum RunnerError: LocalizedError {
         case alreadyRunning
         case failedToCreateLog

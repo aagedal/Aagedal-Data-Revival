@@ -70,9 +70,10 @@ private enum RecoveredFileFilter: String, CaseIterable, Identifiable {
 }
 
 private struct RecoveryView: View {
-    @StateObject private var recovery = RecoveryViewModel()
+    @StateObject private var recovery: RecoveryViewModel
     @StateObject private var diskDevices = DiskDeviceMonitor()
     @StateObject private var imaging = CardImagingViewModel()
+    private let uiTestConfiguration: RecoveryUITestConfiguration?
     @State private var workspace: Workspace? = .recover
     @State private var imageURL: URL?
     @State private var scanProfile: RecoveryScanProfile = .photos
@@ -89,6 +90,24 @@ private struct RecoveryView: View {
     @State private var diskSelection: String?
     @State private var preparedImagingPlan: CardImagingPlan?
     @State private var sessionPendingRemoval: RecoverySession?
+
+    init() {
+        let uiTestConfiguration = RecoveryUITestConfiguration.current()
+        self.uiTestConfiguration = uiTestConfiguration
+        let store = uiTestConfiguration.map {
+            RecoverySessionStore(catalogDirectory: $0.catalogDirectory)
+        } ?? .live
+        if let uiTestConfiguration {
+            _recovery = StateObject(wrappedValue: RecoveryViewModel(
+                store: store,
+                runnerFactory: {
+                    RecoveryFixtureRunner(fixtureURL: uiTestConfiguration.recoveredFixture)
+                }
+            ))
+        } else {
+            _recovery = StateObject(wrappedValue: RecoveryViewModel(store: store))
+        }
+    }
 
     private var files: [SampleFile] {
         SampleFile.examples.filter {
@@ -116,7 +135,9 @@ private struct RecoveryView: View {
                     }
                 }.padding(.horizontal, 12).padding(.top, 18)
                 List(Workspace.allCases, selection: $workspace) { item in
-                    Label(item.rawValue, systemImage: item.symbol).tag(item)
+                    Label(item.rawValue, systemImage: item.symbol)
+                        .tag(item)
+                        .accessibilityIdentifier("workspace-\(item.id)")
                 }
                 .listStyle(.sidebar)
                 .disabled(imaging.isActive)
@@ -265,7 +286,9 @@ private struct RecoveryView: View {
                         Text("Camera card").font(.title2.weight(.semibold))
                         Text("Create a complete image of your card, then recover files from the copy.")
                             .foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
-                        Label("Device imaging is planned", systemImage: "clock").font(.callout).foregroundStyle(.secondary)
+                        Label("Create an image in Disk tools", systemImage: "externaldrive.badge.checkmark")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
                     }.padding(24).frame(maxWidth: .infinity, minHeight: 205, alignment: .topLeading)
                         .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 18))
                     VStack(alignment: .leading, spacing: 16) {
@@ -394,6 +417,7 @@ private struct RecoveryView: View {
                         TextField("Search recovered files", text: $recoveredQuery)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 220)
+                            .accessibilityIdentifier("recovered-files-search")
                     }
                     HStack {
                         Text(recoveredResultsSummary)
@@ -411,6 +435,7 @@ private struct RecoveryView: View {
                         TableColumn("Size") { file in Text(file.byteCount.formatted(.byteCount(style: .file))) }.width(90)
                         TableColumn("Validation") { file in Text(validationLabel(file.validationStatus)) }
                     }
+                    .accessibilityIdentifier("recovered-files-table")
                     if recoveredSelection.count == 1,
                        let file = recovery.recoveredFiles.first(where: { recoveredSelection.contains($0.id) }) {
                         recoveredFileInspector(file)
@@ -460,6 +485,7 @@ private struct RecoveryView: View {
                         }
                     }
                 }
+                .accessibilityIdentifier("recovery-sessions-list")
                 .onChange(of: sessionSelection) { _, id in
                     guard let id else { return }
                     recovery.openSession(id: id)
@@ -684,7 +710,7 @@ private struct RecoveryView: View {
             }
             HStack {
                 Picker("Type", selection: $filter) {
-                    ForEach(["All files", "JPEG", "RAW", "Video"], id: \.self) { Text($0) }
+                    ForEach(["All files", "JPEG", "RAW"], id: \.self) { Text($0) }
                 }.pickerStyle(.segmented).frame(maxWidth: 350)
                 Spacer()
                 TextField("Search sample files", text: $query).textFieldStyle(.roundedBorder).frame(width: 210)
@@ -712,6 +738,11 @@ private struct RecoveryView: View {
     }
 
     private func chooseImage() {
+        if let uiTestConfiguration {
+            imageURL = uiTestConfiguration.sourceImage
+            return
+        }
+
         let panel = NSOpenPanel()
         panel.title = "Choose a raw disk image"
         panel.message = "Select a nonempty IMG, DD, or RAW file. The source will be treated as read-only."
@@ -799,6 +830,21 @@ private struct RecoveryView: View {
 
     private func chooseDestinationAndScan() {
         guard let imageURL else { return }
+        if let uiTestConfiguration {
+            showingDemo = false
+            recovery.startScan(
+                sourceImage: imageURL,
+                destinationRoot: uiTestConfiguration.recoveryDestination,
+                installation: RecoveryToolInstallation(
+                    tool: .photoRec,
+                    executableURL: URL(fileURLWithPath: "/usr/bin/true"),
+                    origin: .developmentInstall
+                ),
+                profile: scanProfile
+            )
+            return
+        }
+
         guard let installation = RecoveryToolLocator.locate(.photoRec) else {
             issue = RecoveryToolLocator.unavailableMessage(for: .photoRec)
             return
@@ -864,6 +910,11 @@ private struct RecoveryView: View {
 
     private func chooseExportDestination() {
         guard !recoveredSelection.isEmpty else { return }
+        if let uiTestConfiguration {
+            exportSelectedFiles(to: uiTestConfiguration.exportDestination)
+            return
+        }
+
         let panel = NSOpenPanel()
         panel.title = "Export recovered files"
         panel.message = "Choose a folder for the selected files. Existing files will not be overwritten."
@@ -873,6 +924,10 @@ private struct RecoveryView: View {
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let destination = panel.url else { return }
 
+        exportSelectedFiles(to: destination)
+    }
+
+    private func exportSelectedFiles(to destination: URL) {
         let selectedIDs = recoveredSelection
         Task {
             do {
@@ -905,6 +960,8 @@ private struct RecoveryView: View {
         }
         .padding(14)
         .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("recovered-file-inspector")
     }
 
     private func liveSessionSummary(_ session: RecoverySession) -> String {

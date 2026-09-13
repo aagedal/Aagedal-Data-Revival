@@ -19,6 +19,13 @@
 			remoteGlobalIDString = 000000000000000100000001;
 			remoteInfo = DataRevivalImagingHelper;
 		};
+		000000000000000000000221 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 000000000000000000000000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 000000000000000100000000;
+			remoteInfo = "Aagedal Data Revival";
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -50,6 +57,7 @@
 		000000000000000000000120 /* Aagedal Data Revival.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Aagedal Data Revival.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		000000000000000000000121 /* DataRevivalImagingHelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = DataRevivalImagingHelper; sourceTree = BUILT_PRODUCTS_DIR; };
 		000000000000000000000122 /* com.aagedal.DataRevival.ImagingHelper.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = LaunchDaemons/com.aagedal.DataRevival.ImagingHelper.plist; sourceTree = SOURCE_ROOT; };
+		000000000000000000000123 /* Aagedal Data Revival UITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Aagedal Data Revival UITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -68,6 +76,11 @@
 			path = ImagingHelper;
 			sourceTree = "<group>";
 		};
+		000000000000000000000013 /* Aagedal Data Revival UITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "Aagedal Data Revival UITests";
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -81,6 +94,11 @@
 			files = (
 			);
 		};
+		000000000000000130000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -90,6 +108,7 @@
 				000000000000000000000010 /* Aagedal Data Revival */,
 				000000000000000000000011 /* Recovery Sources */,
 				000000000000000000000012 /* Imaging Helper */,
+				000000000000000000000013 /* Aagedal Data Revival UITests */,
 				000000000000000000000122 /* com.aagedal.DataRevival.ImagingHelper.plist */,
 				000000000000000000000020 /* Products */,
 			);
@@ -100,6 +119,7 @@
 			children = (
 				000000000000000000000120 /* Aagedal Data Revival.app */,
 				000000000000000000000121 /* DataRevivalImagingHelper */,
+				000000000000000000000123 /* Aagedal Data Revival UITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -149,6 +169,27 @@
 			productReference = 000000000000000000000121 /* DataRevivalImagingHelper */;
 			productType = "com.apple.product-type.tool";
 		};
+		000000000000000100000002 /* Aagedal Data Revival UITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 000000000000000110000002 /* Build configuration list for PBXNativeTarget "Aagedal Data Revival UITests" */;
+			buildPhases = (
+				000000000000000120000002 /* Sources */,
+				000000000000000130000002 /* Frameworks */,
+				000000000000000140000002 /* Resources */,
+			);
+			buildRules = (
+			);
+			fileSystemSynchronizedGroups = (
+				000000000000000000000013 /* Aagedal Data Revival UITests */,
+			);
+			name = "Aagedal Data Revival UITests";
+			dependencies = (
+				000000000000000000000231 /* PBXTargetDependency */,
+			);
+			productName = "Aagedal Data Revival UITests";
+			productReference = 000000000000000000000123 /* Aagedal Data Revival UITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -165,6 +206,10 @@
 					000000000000000100000001 = {
 						CreatedOnToolsVersion = 26.3;
 					};
+					000000000000000100000002 = {
+						CreatedOnToolsVersion = 26.3;
+						TestTargetID = 000000000000000100000000;
+					};
 				};
 			};
 			buildConfigurationList = 000000000000000010000000 /* Build configuration list for PBXProject "Aagedal Data Revival" */;
@@ -180,15 +225,21 @@
 			productRefGroup = 000000000000000000000020 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
-			targets = (
-				000000000000000100000000 /* Aagedal Data Revival */,
-				000000000000000100000001 /* DataRevivalImagingHelper */,
+				targets = (
+					000000000000000100000000 /* Aagedal Data Revival */,
+					000000000000000100000001 /* DataRevivalImagingHelper */,
+					000000000000000100000002 /* Aagedal Data Revival UITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		000000000000000140000000 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			files = (
+			);
+		};
+		000000000000000140000002 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			files = (
 			);
@@ -229,6 +280,11 @@
 			files = (
 			);
 		};
+		000000000000000120000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -236,6 +292,11 @@
 			isa = PBXTargetDependency;
 			target = 000000000000000100000001 /* DataRevivalImagingHelper */;
 			targetProxy = 000000000000000000000220 /* PBXContainerItemProxy */;
+		};
+		000000000000000000000231 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 000000000000000100000000 /* Aagedal Data Revival */;
+			targetProxy = 000000000000000000000221 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -377,6 +438,7 @@
 			buildSettings = {
 				ARCHS = arm64;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "Aagedal Data Revival/DataRevivalDebug.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 3R5QGG9DW6;
@@ -509,6 +571,45 @@
 			};
 			name = Release;
 		};
+		000000000000000111000002 /* Debug configuration for PBXNativeTarget "Aagedal Data Revival UITests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGN_ENTITLEMENTS = "Aagedal Data Revival/DataRevivalDebug.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3R5QGG9DW6;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aagedal.DataRevivalUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_VERSION = 6.0;
+				TEST_TARGET_NAME = "Aagedal Data Revival";
+			};
+			name = Debug;
+		};
+		000000000000000112000002 /* Release configuration for PBXNativeTarget "Aagedal Data Revival UITests" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3R5QGG9DW6;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aagedal.DataRevivalUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_VERSION = 6.0;
+				TEST_TARGET_NAME = "Aagedal Data Revival";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -533,6 +634,14 @@
 			buildConfigurations = (
 				000000000000000111000001 /* Debug configuration for PBXNativeTarget "DataRevivalImagingHelper" */,
 				000000000000000112000001 /* Release configuration for PBXNativeTarget "DataRevivalImagingHelper" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		000000000000000110000002 /* Build configuration list for PBXNativeTarget "Aagedal Data Revival UITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				000000000000000111000002 /* Debug configuration for PBXNativeTarget "Aagedal Data Revival UITests" */,
+				000000000000000112000002 /* Release configuration for PBXNativeTarget "Aagedal Data Revival UITests" */,
 			);
 			defaultConfigurationName = Release;
 		};
