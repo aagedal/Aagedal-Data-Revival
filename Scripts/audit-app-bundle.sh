@@ -10,11 +10,23 @@ fi
 app="$1"
 helpers="$app/Contents/Helpers"
 engine_artifacts="$app/Contents/Resources/RecoveryEngines"
-bundle_executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")"
+info_plist="$app/Contents/Info.plist"
+bundle_executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$info_plist")"
 main_executable="$app/Contents/MacOS/$bundle_executable"
 imaging_helper="$app/Contents/MacOS/DataRevivalImagingHelper"
 imaging_helper_plist="$app/Contents/Library/LaunchDaemons/com.aagedal.DataRevival.ImagingHelper.plist"
 required_tools=(photorec ddrescue)
+
+display_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$info_plist")"
+application_category="$(/usr/libexec/PlistBuddy -c 'Print :LSApplicationCategoryType' "$info_plist")"
+icon_file="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$info_plist")"
+if [[ "$display_name" != "Aagedal Data Revival" ||
+      "$application_category" != "public.app-category.utilities" ||
+      -z "$icon_file" ||
+      ! -f "$app/Contents/Resources/${icon_file%.icns}.icns" ]]; then
+    echo "error: application name, category, or production icon metadata is incomplete" >&2
+    exit 1
+fi
 
 if [[ ! -x "$main_executable" ]]; then
     echo "error: app executable is missing: $main_executable" >&2

@@ -55,6 +55,11 @@ jobs:
             test "$(lipo -archs "$binary")" = arm64
           done
           test -f "$app/Contents/Library/LaunchDaemons/com.aagedal.DataRevival.ImagingHelper.plist"
+          info_plist="$app/Contents/Info.plist"
+          test "$(plutil -extract CFBundleDisplayName raw -o - "$info_plist")" = 'Aagedal Data Revival'
+          test "$(plutil -extract LSApplicationCategoryType raw -o - "$info_plist")" = 'public.app-category.utilities'
+          icon_file="$(plutil -extract CFBundleIconFile raw -o - "$info_plist")"
+          test -f "$app/Contents/Resources/${icon_file%.icns}.icns"
           artifacts="$app/Contents/Resources/RecoveryEngines"
           test -f "$artifacts/Licenses/PhotoRec-COPYING.txt"
           test -f "$artifacts/Licenses/GNU-ddrescue-COPYING.txt"
