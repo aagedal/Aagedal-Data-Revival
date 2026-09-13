@@ -172,11 +172,14 @@ private struct RecoveryView: View {
                 HStack(spacing: 10) {
                     Image(systemName: "arrow.counterclockwise.circle.fill")
                         .font(.system(size: 32)).foregroundStyle(.teal)
+                        .accessibilityHidden(true)
                     VStack(alignment: .leading) {
                         Text("Data Revival").font(.headline)
                         Text("AAGEDAL").font(.caption2).tracking(2).foregroundStyle(.secondary)
                     }
-                }.padding(.horizontal, 12).padding(.top, 18)
+                }
+                .accessibilityElement(children: .combine)
+                .padding(.horizontal, 12).padding(.top, 18)
                 List(Workspace.allCases, selection: $workspace) { item in
                     Label(item.rawValue, systemImage: item.symbol)
                         .tag(item)
@@ -210,6 +213,7 @@ private struct RecoveryView: View {
                     Text("PROTOTYPE").font(.caption2.weight(.semibold)).tracking(1)
                         .padding(.horizontal, 10).padding(.vertical, 5)
                         .background(.orange.opacity(0.12), in: Capsule()).foregroundStyle(.orange)
+                        .accessibilityLabel("Release status: prototype")
                 }
             }
         }
@@ -302,7 +306,12 @@ private struct RecoveryView: View {
             Text(number).font(.caption.weight(.semibold)).frame(width: 25, height: 25)
                 .background(active ? Color.teal.opacity(0.16) : Color.secondary.opacity(0.1), in: Circle())
             Text(title).font(.callout.weight(active ? .semibold : .regular))
-        }.foregroundStyle(active ? Color.primary : Color.secondary).fixedSize()
+        }
+        .foregroundStyle(active ? Color.primary : Color.secondary)
+        .fixedSize()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Step \(number): \(title)")
+        .accessibilityValue(active ? "Current" : "Not current")
     }
 
     private func scanMetric(value: String, label: String) -> some View {
@@ -311,6 +320,9 @@ private struct RecoveryView: View {
             Text(label).font(.caption).foregroundStyle(.secondary)
         }
         .frame(minWidth: 90)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue(value)
     }
 
     private func formattedElapsedTime(_ interval: TimeInterval) -> String {
@@ -332,26 +344,32 @@ private struct RecoveryView: View {
                 HStack(alignment: .top, spacing: 18) {
                     VStack(alignment: .leading, spacing: 16) {
                         Image(systemName: "sdcard").font(.system(size: 35)).foregroundStyle(.teal)
+                            .accessibilityHidden(true)
                         Text("Camera card").font(.title2.weight(.semibold))
                         Text("Create a complete image of your card, then recover files from the copy.")
                             .foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
                         Label("Create an image in Disk tools", systemImage: "externaldrive.badge.checkmark")
                             .font(.callout)
                             .foregroundStyle(.secondary)
-                    }.padding(24).frame(maxWidth: .infinity, minHeight: 205, alignment: .topLeading)
+                    }
+                    .accessibilityElement(children: .combine)
+                    .padding(24).frame(maxWidth: .infinity, minHeight: 205, alignment: .topLeading)
                         .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 18))
                     VStack(alignment: .leading, spacing: 16) {
                         Image(systemName: "doc.zipper").font(.system(size: 35)).foregroundStyle(.teal)
+                            .accessibilityHidden(true)
                         Text("Disk image").font(.title2.weight(.semibold))
                         Text("Choose an existing raw image to prepare a recovery session.")
                             .foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
                         Button("Choose image…", action: chooseImage).buttonStyle(.borderedProminent)
+                            .keyboardShortcut("o", modifiers: .command)
                     }.padding(24).frame(maxWidth: .infinity, minHeight: 205, alignment: .topLeading)
                         .background(.teal.opacity(0.07), in: RoundedRectangle(cornerRadius: 18))
                 }
                 if let imageURL {
                     HStack(spacing: 12) {
                         Image(systemName: "doc").font(.title2).foregroundStyle(.teal)
+                            .accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 5) {
                             Text(imageURL.lastPathComponent).font(.headline)
                             Text("Ready for an experimental read-only photo scan.")
@@ -398,7 +416,9 @@ private struct RecoveryView: View {
             if recovery.isScanning {
                 Spacer()
                 VStack(spacing: 18) {
-                    ProgressView().controlSize(.large)
+                    ProgressView()
+                        .controlSize(.large)
+                        .accessibilityLabel("Scanning disk image")
                     Text("Scanning the disk image").font(.title2.weight(.semibold))
                     Text(
                         "PhotoRec is looking for \(recovery.activeSession?.effectiveScanProfile.resultDescription ?? "photo files"). "
@@ -425,6 +445,7 @@ private struct RecoveryView: View {
                         .padding(.vertical, 4)
                     }
                     Button("Cancel scan") { recovery.cancelScan() }
+                        .keyboardShortcut(.cancelAction)
                 }
                 .frame(maxWidth: .infinity)
                 Spacer()
@@ -475,6 +496,7 @@ private struct RecoveryView: View {
                         Spacer()
                         Button("Export Selected…", action: chooseExportDestination)
                             .disabled(recoveredSelection.isEmpty)
+                            .keyboardShortcut("e", modifiers: [.command, .shift])
                     }
                     Table(visibleRecoveredFiles, selection: $recoveredSelection) {
                         TableColumn("Name") { file in
@@ -520,10 +542,16 @@ private struct RecoveryView: View {
                         Text("\(session.effectiveScanProfile.displayName) • \(session.recoveredFiles.count) files • \(session.updatedAt.formatted(date: .abbreviated, time: .shortened))")
                             .font(.callout).foregroundStyle(.secondary)
                         Text(session.sessionDirectoryPath)
-                            .font(.caption.monospaced()).foregroundStyle(.tertiary).lineLimit(1)
+                            .font(.caption.monospaced()).foregroundStyle(.secondary).lineLimit(1)
                     }
                     .padding(.vertical, 6)
                     .tag(session.id)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(sessionAccessibilityLabel(session))
+                    .accessibilityHint("Open this recovery session")
+                    .accessibilityIdentifier(
+                        "recovery-session-\(session.sourceImageURL.lastPathComponent)"
+                    )
                     .contextMenu {
                         Button("Show in Finder", systemImage: "folder") {
                             NSWorkspace.shared.activateFileViewerSelecting([session.sessionDirectoryURL])
@@ -561,6 +589,7 @@ private struct RecoveryView: View {
                 Button("Rescan", systemImage: "arrow.clockwise") {
                     diskDevices.restart()
                 }
+                .keyboardShortcut("r", modifiers: .command)
             }
 
             if let message = diskDevices.errorMessage {
@@ -581,6 +610,7 @@ private struct RecoveryView: View {
                         Image(systemName: "externaldrive.fill")
                             .font(.title2)
                             .foregroundStyle(.teal)
+                            .accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 5) {
                             Text(device.displayName).font(.headline)
                             Text(deviceSummary(device))
@@ -590,10 +620,13 @@ private struct RecoveryView: View {
                         Spacer()
                         Text(device.devicePath)
                             .font(.caption.monospaced())
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 6)
                     .tag(device.id)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(deviceAccessibilityLabel(device))
+                    .accessibilityHint("Select this card for imaging")
                 }
                 .disabled(imaging.isActive)
 
@@ -620,6 +653,8 @@ private struct RecoveryView: View {
                                 value: Double(snapshot.rescuedByteCount),
                                 total: Double(snapshot.totalByteCount)
                             )
+                            .accessibilityLabel("Card imaging progress")
+                            .accessibilityValue(imagingProgressSummary(snapshot))
                             Text(imagingProgressSummary(snapshot))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -655,21 +690,27 @@ private struct RecoveryView: View {
         switch imaging.state {
         case .preparing:
             HStack {
-                ProgressView().controlSize(.small)
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityLabel("Preparing card imaging")
                 Text("Authorizing, unmounting, and revalidating the card…")
                 Spacer()
                 Button("Cancel") { imaging.cancel() }
             }
         case .imaging:
             HStack {
-                ProgressView().controlSize(.small)
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityLabel("Creating card image")
                 Text("Creating a resumable card image…")
                 Spacer()
                 Button("Cancel") { imaging.cancel() }
             }
         case .cancelling:
             HStack {
-                ProgressView().controlSize(.small)
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityLabel("Stopping card imaging safely")
                 Text("Stopping safely and preserving resume files…")
             }
         case .completed:
@@ -731,6 +772,7 @@ private struct RecoveryView: View {
                 }
                 Spacer()
                 Button("Back to source") { showingDemo = false; selection = nil }
+                    .keyboardShortcut(.cancelAction)
             }
             HStack {
                 Picker("Type", selection: $filter) {
@@ -984,7 +1026,8 @@ private struct RecoveryView: View {
         }
         .padding(14)
         .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
-        .accessibilityElement(children: .contain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(recoveredFileAccessibilityLabel(file))
         .accessibilityIdentifier("recovered-file-inspector")
     }
 
@@ -997,6 +1040,23 @@ private struct RecoveryView: View {
         case .interrupted: "The app stopped before the scan finished. Partial output was preserved."
         case .failed: session.failureMessage ?? "The scan failed."
         }
+    }
+
+    private func sessionAccessibilityLabel(_ session: RecoverySession) -> String {
+        "\(session.sourceImageURL.lastPathComponent), \(session.status.rawValue), "
+            + "\(session.effectiveScanProfile.displayName), "
+            + "\(session.recoveredFiles.count) files, updated "
+            + session.updatedAt.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    private func deviceAccessibilityLabel(_ device: StorageDevice) -> String {
+        "\(device.displayName), \(deviceSummary(device)), \(device.devicePath)"
+    }
+
+    private func recoveredFileAccessibilityLabel(_ file: RecoveredFile) -> String {
+        "\(file.name), \(file.byteCount.formatted(.byteCount(style: .file))), "
+            + "\(validationLabel(file.validationStatus)). "
+            + validationExplanation(for: file)
     }
 
     private func imagingPlanSummary(_ plan: CardImagingPlan) -> String {
@@ -1108,11 +1168,14 @@ private struct QuickLookFilePreview: NSViewRepresentable {
         let preview = QLPreviewView(frame: .zero, style: .normal)!
         preview.autostarts = true
         preview.previewItem = url as NSURL
+        preview.setAccessibilityRole(.image)
+        preview.setAccessibilityLabel("Preview of \(url.lastPathComponent)")
         return preview
     }
 
     func updateNSView(_ preview: QLPreviewView, context: Context) {
         preview.previewItem = url as NSURL
+        preview.setAccessibilityLabel("Preview of \(url.lastPathComponent)")
         preview.refreshPreviewItem()
     }
 }

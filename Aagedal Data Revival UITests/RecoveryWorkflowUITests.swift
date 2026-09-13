@@ -44,7 +44,7 @@ final class RecoveryWorkflowUITests: XCTestCase {
             newWindow.click()
         }
         XCTAssertTrue(chooseImage.waitForExistence(timeout: 5))
-        chooseImage.click()
+        app.typeKey("o", modifierFlags: .command)
 
         let recoverPhotos = app.buttons["Recover Photos…"]
         XCTAssertTrue(recoverPhotos.waitForExistence(timeout: 5))
@@ -73,14 +73,14 @@ final class RecoveryWorkflowUITests: XCTestCase {
         let recoveredFile = resultsTable.descendants(matching: .staticText)["recovered.jpg"]
         XCTAssertTrue(recoveredFile.waitForExistence(timeout: 5))
         recoveredFile.click()
-        XCTAssertTrue(
-            app.descendants(matching: .any)["recovered-file-inspector"]
-                .waitForExistence(timeout: 5)
-        )
+        let inspector = app.descendants(matching: .any)["recovered-file-inspector"]
+        XCTAssertTrue(inspector.waitForExistence(timeout: 5))
+        XCTAssertTrue(inspector.label.contains("recovered.jpg"))
+        XCTAssertTrue(inspector.label.contains("Readable"))
 
         let export = app.buttons["Export Selected…"]
         XCTAssertTrue(export.isEnabled)
-        export.click()
+        app.typeKey("e", modifierFlags: [.command, .shift])
         let confirmation = app.staticTexts["Export complete"]
         XCTAssertTrue(confirmation.waitForExistence(timeout: 5))
         app.buttons["action-button-1"].click()
@@ -97,8 +97,12 @@ final class RecoveryWorkflowUITests: XCTestCase {
         sessionsWorkspace.click()
         let sessionList = app.descendants(matching: .any)["recovery-sessions-list"]
         XCTAssertTrue(sessionList.waitForExistence(timeout: 5))
-        let savedSession = sessionList.staticTexts["ui-test-card.img"]
+        let savedSession = sessionList.descendants(matching: .any)[
+            "recovery-session-ui-test-card.img"
+        ]
         XCTAssertTrue(savedSession.waitForExistence(timeout: 5))
+        XCTAssertTrue(savedSession.label.contains("completed"))
+        XCTAssertTrue(savedSession.label.contains("1 files"))
         savedSession.click()
         XCTAssertTrue(app.staticTexts["Recovered files"].waitForExistence(timeout: 5))
         let reopenedResult = app.descendants(matching: .any)["recovered-files-table"]

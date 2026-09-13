@@ -41,7 +41,8 @@ box in this document is not a substitute for evidence from the candidate.
   a full destination, remount, and eject while retaining required sidecars.
 - [ ] Verify source/destination collision checks with separate partitions on the
   same physical device.
-- [ ] Complete keyboard, VoiceOver, contrast, and reduced-motion checks.
+- [ ] Complete keyboard, VoiceOver, contrast, and reduced-motion checks and
+  record the matrix in `Documentation/AccessibilityReview.md`.
 - [ ] Compare representative supported camera files with known-original hashes
   and record all exceptions in the support matrix and release notes.
 

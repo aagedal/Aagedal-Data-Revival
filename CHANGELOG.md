@@ -21,6 +21,8 @@ All notable changes to Aagedal Data Revival are recorded here. The project uses
 - GPLv3-or-later application licensing with an in-app notice and bundled full
   license text.
 - A versioned JPEG recovery-quality benchmark and deterministic UI workflow.
+- VoiceOver descriptions for recovery and imaging state, plus keyboard shortcuts
+  for the primary open, cancel, export, and rescan actions.
 
 ### Known limitations
 
