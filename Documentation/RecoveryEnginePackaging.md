@@ -36,6 +36,15 @@ with `Scripts/build-recovery-engines.sh`; selection rationale and deliberately
 disabled optional dependencies are documented in
 `Documentation/RecoveryEngineVersions.md`.
 
+The Xcode target runs `Scripts/embed-recovery-engines.sh` after compiling the
+app. It takes engine products from `Build/RecoveryEngines` by default; set the
+`RECOVERY_ENGINE_PRODUCTS_DIR` build setting to use a separate verified output.
+Debug builds warn and continue when those products are absent. Release builds
+fail instead of silently producing an app without its engines. When code
+signing is active, the phase signs each engine with Xcode's expanded identity
+and hardened-runtime option before Xcode signs the outer app. The deliberately
+unsigned CI build skips only that signing operation.
+
 ## Release gate
 
 After creating and signing an archive, run:
@@ -49,7 +58,6 @@ required engine is absent, is not executable, is not signed, or links to an abso
 outside macOS system locations. It also rejects external `LC_RPATH` entries and
 verifies the outer app's nested signature.
 
-This audit is intentionally a release check, not an embedding script. Engine
-builds should be pinned and reproducible before the Xcode copy/sign phases are
-added; otherwise a local package-manager update could silently change the
-shipped recovery behavior.
+This audit is intentionally a release check, separate from embedding. The
+embedding phase repeats architecture and dependency checks so a local
+package-manager binary cannot silently become shipped recovery behavior.

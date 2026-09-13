@@ -40,10 +40,9 @@ under `Build/RecoveryEngines` by default. Pass a new output directory as the
 first argument to compare independent builds. Set
 `DATA_REVIVAL_ENGINE_SOURCE_CACHE` to reuse an existing archive cache.
 
-Generated output is intentionally not committed. The later Xcode packaging
-phase will copy only `Helpers/photorec` and `Helpers/ddrescue` into the app;
-license and corresponding-source artifacts belong beside each downloadable
-binary release.
+Generated output is intentionally not committed. The Xcode packaging phase
+copies only `Helpers/photorec` and `Helpers/ddrescue` into the app; license and
+corresponding-source artifacts belong beside each downloadable binary release.
 
 As a reproducibility check on 2026-09-13, two clean builds in separate temporary
 directories produced byte-identical executables with Apple clang 21.0.0 and the

@@ -22,6 +22,9 @@ jobs:
       - name: Run foundation tests
         run: swift test
 
+      - name: Build pinned recovery engines
+        run: Scripts/build-recovery-engines.sh "$RUNNER_TEMP/RecoveryEngines"
+
       - name: Build release configuration
         run: >-
           xcodebuild
@@ -30,11 +33,18 @@ jobs:
           -configuration Release
           -destination 'generic/platform=macOS'
           -derivedDataPath "$RUNNER_TEMP/DataRevivalDerived"
+          RECOVERY_ENGINE_PRODUCTS_DIR="$RUNNER_TEMP/RecoveryEngines"
           CODE_SIGNING_ALLOWED=NO
           build
 
-      - name: Verify arm64-only application
-        run: >-
-          lipo -archs
-          "$RUNNER_TEMP/DataRevivalDerived/Build/Products/Release/Aagedal Data Revival.app/Contents/MacOS/Aagedal Data Revival"
-          | grep -Fx arm64
+      - name: Verify arm64-only application and engines
+        shell: bash
+        run: |
+          app="$RUNNER_TEMP/DataRevivalDerived/Build/Products/Release/Aagedal Data Revival.app"
+          for binary in \
+            "$app/Contents/MacOS/Aagedal Data Revival" \
+            "$app/Contents/Helpers/photorec" \
+            "$app/Contents/Helpers/ddrescue"
+          do
+            test "$(lipo -archs "$binary")" = arm64
+          done
