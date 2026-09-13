@@ -18,6 +18,49 @@ struct DataRevivalApp: App {
     }
 }
 
+private enum AppLegalNotice {
+    static let copyright = "Copyright © 2026 Truls Aagedal"
+    static let summary = "Aagedal Data Revival is free software licensed under the GNU General Public License, version 3 or later. It comes without any warranty."
+
+    static var fullLicense: String {
+        guard let resources = Bundle.main.resourceURL else {
+            return "The full GNU General Public License could not be loaded."
+        }
+        let licenseURL = resources
+            .appendingPathComponent("Legal", isDirectory: true)
+            .appendingPathComponent("Aagedal-Data-Revival-LICENSE.txt")
+        return (try? String(contentsOf: licenseURL, encoding: .utf8)) ??
+            "The full GNU General Public License could not be loaded."
+    }
+}
+
+private struct LegalNoticeView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("License & Notices").font(.title2.weight(.semibold))
+                Spacer()
+                Button("Done") { dismiss() }
+                    .keyboardShortcut(.defaultAction)
+            }
+            Text(AppLegalNotice.copyright)
+            Text(AppLegalNotice.summary)
+                .foregroundStyle(.secondary)
+            Divider()
+            ScrollView {
+                Text(AppLegalNotice.fullLicense)
+                    .font(.system(.caption, design: .monospaced))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(24)
+        .frame(minWidth: 680, minHeight: 560)
+    }
+}
+
 private enum Workspace: String, CaseIterable, Identifiable {
     case recover = "Recover files"
     case sessions = "Recovery sessions"
@@ -89,6 +132,7 @@ private struct RecoveryView: View {
     @State private var diskSelection: String?
     @State private var preparedImagingPlan: CardImagingPlan?
     @State private var sessionPendingRemoval: RecoverySession?
+    @State private var showingLegalNotice = false
 
     init() {
         let uiTestConfiguration = RecoveryUITestConfiguration.current()
@@ -144,6 +188,10 @@ private struct RecoveryView: View {
                     Label("Early prototype", systemImage: "hammer").font(.callout.weight(.medium))
                     Text("Explore sample files or run an experimental photo scan from a raw disk image.")
                         .font(.caption).foregroundStyle(.secondary)
+                    Divider()
+                    Button("License & Notices") { showingLegalNotice = true }
+                        .buttonStyle(.link)
+                        .font(.caption)
                 }.padding(14).background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
                     .padding(12)
             }
@@ -166,6 +214,9 @@ private struct RecoveryView: View {
             }
         }
         .tint(.teal)
+        .sheet(isPresented: $showingLegalNotice) {
+            LegalNoticeView()
+        }
         .task {
             recovery.loadSessions()
         }

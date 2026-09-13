@@ -11,7 +11,7 @@ requires another review.
 
 | Component | Relationship | License and evidence | Distribution treatment |
 | --- | --- | --- | --- |
-| Aagedal Data Revival | Native app built from this repository | The repository contains the complete GPLv3 text in `LICENSE`, but still needs an explicit copyright-holder and GPL version declaration before release. | Publish corresponding source for the exact release tag beside the binary release and retain all notices. |
+| Aagedal Data Revival | Native app built from this repository | Copyright © 2026 Truls Aagedal; GPLv3-or-later, declared in `NOTICE`, with the complete GPLv3 text in `LICENSE`. | Package the notice and license with the app, publish corresponding source for the exact release tag beside the binary release, and retain all notices. |
 | PhotoRec 7.2 | Separate executable launched with command-line arguments; not linked into the app | GPL-2.0-or-later, confirmed by the upstream 7.2 documentation and the source archive's `COPYING` and `AUTHORS` files. | Ship the exact upstream source archive, GPLv2 text, author notice, build script, lockfile, and checksums with the app. |
 | GNU ddrescue 1.30 | Separate executable launched with command-line arguments and an inherited read-only descriptor; not linked into the app | GPL-2.0-or-later, confirmed by the pinned source archive's `COPYING` file and executable notice. | Ship the exact upstream source archive, GPLv2 text, author notice, dated modification notice, applied patch, build script, lockfile, and checksums with the app. |
 | macOS system libraries | Dynamic dependencies supplied as part of macOS | PhotoRec uses `/usr/lib/libncurses.5.4.dylib` and `/usr/lib/libSystem.B.dylib`; ddrescue uses `/usr/lib/libc++.1.dylib` and `/usr/lib/libSystem.B.dylib`. | Do not redistribute them. The build and bundle audits reject non-system dynamic dependencies. |
@@ -39,16 +39,16 @@ package and includes:
 The Xcode embedding phase copies those materials into
 `Contents/Resources/RecoveryEngines`. The signed-bundle audit rejects a release
 when any item is missing, symlinked, or changed. The GitHub Release must also
-link the immutable source tree for the exact app tag.
+link the immutable source tree for the exact app tag. Every app build also
+contains the approved project notice and complete GPLv3 text under
+`Contents/Resources/Legal`, and the interface provides a License & Notices view.
 
-## Release decision still required
+## Approval
 
-The current `LICENSE` file is the unmodified GPLv3 text, but a license copy by
-itself does not identify the copyright holder or clearly state whether the app
-is offered under GPLv3-only or GPLv3-or-later. Before the P0 license-review box
-can be closed, the copyright holder must approve and add that explicit project
-notice. If distribution is commercial or the separate-program interpretation
-is material to the business, obtain qualified legal review before publishing.
+Truls Aagedal approved the GPLv3-or-later declaration and copyright notice on
+2026-09-13. If distribution is commercial or the separate-program
+interpretation is material to the business, obtain qualified legal review
+before publishing.
 
 ## Primary references
 

@@ -16,6 +16,13 @@ for name in "${required_environment[@]}"; do
     fi
 done
 
+app_legal_destination="$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Resources/Legal"
+/bin/mkdir -p "$app_legal_destination"
+/usr/bin/install -m 0644 "$SRCROOT/LICENSE" \
+    "$app_legal_destination/Aagedal-Data-Revival-LICENSE.txt"
+/usr/bin/install -m 0644 "$SRCROOT/NOTICE" \
+    "$app_legal_destination/Aagedal-Data-Revival-NOTICE.txt"
+
 products_root="${RECOVERY_ENGINE_PRODUCTS_DIR:-$SRCROOT/Build/RecoveryEngines}"
 source_helpers="$products_root/Helpers"
 destination_helpers="$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Helpers"

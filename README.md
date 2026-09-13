@@ -97,9 +97,9 @@ Benchmark with known original files and byte hashes. Include quick-formatted FAT
 
 PhotoRec and GNU ddrescue are GPL-2.0-or-later. Release builds include their
 exact upstream sources, licenses, notices, the reviewed ddrescue patch, and the
-engine build script. The repository currently contains the GPLv3 license text;
-the copyright holder must still approve an explicit GPLv3-only or
-GPLv3-or-later app declaration before release. See the
+engine build script. Aagedal Data Revival is copyright © 2026 Truls Aagedal and
+licensed under GPLv3-or-later; every app build includes the declaration and
+complete GPLv3 text. See the
 [version 1.0 license review](Documentation/LicenseReview.md).
 
 Target a signed and notarized direct-download macOS application. Recovery engines and any non-system libraries must be bundled and nested-code signed; a release audit now rejects missing engines, architecture mismatches, invalid signatures, and external dynamic-library paths.

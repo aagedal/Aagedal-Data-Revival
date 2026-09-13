@@ -8,12 +8,24 @@ if [[ $# -ne 1 ]]; then
 fi
 
 app="$1"
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
 helpers="$app/Contents/Helpers"
 engine_artifacts="$app/Contents/Resources/RecoveryEngines"
+app_legal="$app/Contents/Resources/Legal"
 info_plist="$app/Contents/Info.plist"
 bundle_executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$info_plist")"
 main_executable="$app/Contents/MacOS/$bundle_executable"
 required_tools=(photorec ddrescue)
+
+if [[ ! -f "$app_legal/Aagedal-Data-Revival-LICENSE.txt" ||
+      -L "$app_legal/Aagedal-Data-Revival-LICENSE.txt" ||
+      ! -f "$app_legal/Aagedal-Data-Revival-NOTICE.txt" ||
+      -L "$app_legal/Aagedal-Data-Revival-NOTICE.txt" ]] ||
+   ! cmp -s "$repo_root/LICENSE" "$app_legal/Aagedal-Data-Revival-LICENSE.txt" ||
+   ! cmp -s "$repo_root/NOTICE" "$app_legal/Aagedal-Data-Revival-NOTICE.txt"; then
+    echo "error: app GPLv3-or-later license or copyright notice is missing or changed" >&2
+    exit 1
+fi
 
 display_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$info_plist")"
 application_category="$(/usr/libexec/PlistBuddy -c 'Print :LSApplicationCategoryType' "$info_plist")"

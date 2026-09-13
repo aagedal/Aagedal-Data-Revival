@@ -5,7 +5,8 @@ Version 1.0 uses signed and notarized direct downloads from
 The canonical artifact is a stapled ZIP containing `Aagedal Data Revival.app`.
 Each release also publishes a SHA-256 checksum for the ZIP, links the exact tag
 containing the application's corresponding source, and retains the embedded,
-checksum-verified corresponding source for the bundled recovery engines.
+checksum-verified corresponding source for the bundled recovery engines. The
+app bundle includes its GPLv3-or-later notice and the complete GPLv3 license.
 
 The app has no automatic updater in 1.0 and performs no network request to check
 for releases. Users opt in to updates by visiting the releases page. Release

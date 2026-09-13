@@ -60,6 +60,8 @@ jobs:
           test "$(plutil -extract LSApplicationCategoryType raw -o - "$info_plist")" = 'public.app-category.utilities'
           icon_file="$(plutil -extract CFBundleIconFile raw -o - "$info_plist")"
           test -f "$app/Contents/Resources/${icon_file%.icns}.icns"
+          test -f "$app/Contents/Resources/Legal/Aagedal-Data-Revival-LICENSE.txt"
+          test -f "$app/Contents/Resources/Legal/Aagedal-Data-Revival-NOTICE.txt"
           artifacts="$app/Contents/Resources/RecoveryEngines"
           test -f "$artifacts/Licenses/PhotoRec-COPYING.txt"
           test -f "$artifacts/Licenses/GNU-ddrescue-COPYING.txt"

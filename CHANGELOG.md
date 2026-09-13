@@ -18,6 +18,8 @@ All notable changes to Aagedal Data Revival are recorded here. The project uses
   filtering, collision-safe export, and recoverable cleanup.
 - Reproducible arm64 recovery-engine builds with pinned sources, licenses,
   notices, corresponding source, and a signed-bundle audit.
+- GPLv3-or-later application licensing with an in-app notice and bundled full
+  license text.
 - A versioned JPEG recovery-quality benchmark and deterministic UI workflow.
 
 ### Known limitations
