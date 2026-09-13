@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import DiskArbitration
+import Darwin
 
 struct StorageDevice: Identifiable, Sendable, Equatable {
     let bsdName: String
@@ -102,8 +103,7 @@ enum DiskIdentityResolver {
         session: DASession? = DASessionCreate(kCFAllocatorDefault)
     ) throws -> String? {
         guard let session else { return nil }
-        let values = try url.resourceValues(forKeys: [.volumeURLForRemountingKey])
-        let volumeURL = values.volumeURLForRemounting ?? url
+        let volumeURL = try volumeMountURL(containing: url)
         guard let volumeDisk = DADiskCreateFromVolumePath(
             kCFAllocatorDefault,
             session,
@@ -114,6 +114,22 @@ enum DiskIdentityResolver {
             return nil
         }
         return String(cString: bsdName)
+    }
+
+    /// Disk Arbitration requires the volume's mount point, not an arbitrary
+    /// descendant. `statfs` also handles APFS firmlinks such as `/Users` by
+    /// returning the actual Data-volume mount.
+    static func volumeMountURL(containing url: URL) throws -> URL {
+        var fileSystem = statfs()
+        guard statfs(url.path, &fileSystem) == 0 else {
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
+        let mountPath = withUnsafePointer(to: &fileSystem.f_mntonname) { pointer in
+            pointer.withMemoryRebound(to: CChar.self, capacity: Int(MNAMELEN)) {
+                String(cString: $0)
+            }
+        }
+        return URL(fileURLWithPath: mountPath, isDirectory: true)
     }
 }
 

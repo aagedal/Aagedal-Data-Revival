@@ -35,7 +35,7 @@ enum DiskLifecycleError: LocalizedError, Equatable {
 }
 
 /// Performs non-forced whole-disk lifecycle operations through Disk Arbitration.
-/// Raw-device access remains the responsibility of the privileged helper; this
+/// Raw-device access is authorized separately through macOS `authopen`; this
 /// type only establishes and restores the safe unmounted state around imaging.
 struct DiskArbitrationLifecycleController: DiskLifecycleControlling {
     func unmountWholeDisk(bsdName: String) async throws {
@@ -144,7 +144,7 @@ enum CardPostImagingAction: Sendable, Equatable {
     case eject
 }
 
-/// Owns the unprivileged half of the source-access sequence. Identity is checked
+/// Owns the disk-lifecycle half of the source-access sequence. Identity is checked
 /// before unmount and resolved again after unmount so a reused BSD name cannot
 /// silently redirect the subsequent privileged request to another device.
 struct CardImagingSourceCoordinator: Sendable {

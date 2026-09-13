@@ -273,6 +273,15 @@ struct RecoveryFoundationTests {
         }
     }
 
+    @Test("Destination disk identity starts from the containing mount point")
+    func destinationDiskIdentityUsesMountPoint() throws {
+        let directory = FileManager.default.temporaryDirectory
+        let mountURL = try DiskIdentityResolver.volumeMountURL(containing: directory)
+
+        #expect(mountURL.path.hasPrefix("/"))
+        #expect(try DiskIdentityResolver.wholeDiskBSDName(containing: directory) != nil)
+    }
+
     @Test("GNU ddrescue receives source, image, and mapfile as separate arguments")
     func ddrescueCommandPreservesPaths() throws {
         let root = FileManager.default.temporaryDirectory
@@ -302,65 +311,69 @@ struct RecoveryFoundationTests {
         #expect(command.sourceByteCount == source.byteCount)
     }
 
-    @Test("Privileged imaging requests bind every sidecar to the approved image")
-    func privilegedImagingRequestValidation() throws {
+    @Test("authopen requests only path-specific read-only card access")
+    func authopenInvocationIsReadOnlyAndPathSpecific() throws {
         let source = try #require(makeStorageDevice(bsdName: "disk7", byteCount: 64_000))
-        let plan = CardImagingPlan(
-            sourceDevice: source,
-            imageURL: URL(fileURLWithPath: "/Volumes/Recovery Drive/camera.img"),
-            mapURL: URL(fileURLWithPath: "/Volumes/Recovery Drive/camera.img.map"),
-            runnerLogURL: URL(fileURLWithPath: "/Volumes/Recovery Drive/camera.img.ddrescue.log"),
-            resumeRecordURL: URL(fileURLWithPath: "/Volumes/Recovery Drive/camera.img.datarevival.json"),
-            resumeRecord: CardImagingResumeRecord(source: .init(device: source)),
-            mapSnapshot: nil,
-            mode: .create
-        )
-        let request = PrivilegedImagingRequest(
-            plan: plan,
-            operationIdentifier: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
-        )
-        try request.validateStructure()
+        let invocation = AuthopenInvocation(device: source)
 
-        var object = try #require(
-            JSONSerialization.jsonObject(with: JSONEncoder().encode(request)) as? [String: Any]
-        )
-        object["mapPath"] = "/tmp/unapproved.map"
-        let changed = try JSONDecoder().decode(
-            PrivilegedImagingRequest.self,
-            from: JSONSerialization.data(withJSONObject: object)
-        )
-        #expect(throws: PrivilegedImagingError.invalidDestination) {
-            try changed.validateStructure()
-        }
-    }
-
-    @Test("Privileged imaging responses preserve structured operational issues")
-    func privilegedImagingResponseIssues() throws {
-        let response = PrivilegedImagingResponse(
-            outcome: .failed,
-            exitStatus: 1,
-            message: "The destination ran out of space.",
-            issue: .destinationFull
-        )
-        let decoded = try JSONDecoder().decode(
-            PrivilegedImagingResponse.self,
-            from: JSONEncoder().encode(response)
-        )
-        #expect(decoded == response)
-        #expect(decoded.issue?.fallbackMessage.contains("ran out of space") == true)
-
-        let legacyResponse = Data(#"{"outcome":"completed","exitStatus":0}"#.utf8)
-        let legacyDecoded = try JSONDecoder().decode(
-            PrivilegedImagingResponse.self,
-            from: legacyResponse
-        )
-        #expect(legacyDecoded.outcome == .completed)
-        #expect(legacyDecoded.issue == nil)
+        #expect(invocation.rawDeviceURL.path == "/dev/rdisk7")
+        #expect(invocation.authorizationRight == "sys.openfile.readonly./dev/rdisk7")
+        #expect(invocation.arguments == ["-stdoutpipe", "-extauth", "/dev/rdisk7"])
         #expect(
-            PrivilegedImagingError.authorizationFailed(errAuthorizationCanceled)
+            AuthorizedImagingError.authorizationFailed(errAuthorizationCanceled)
                 .errorDescription ==
                 "Administrator authorization was cancelled. No card data was read."
         )
+    }
+
+    @Test("Authorized card handles must be read-only character devices")
+    func authorizedDescriptorValidation() throws {
+        let source = try #require(makeStorageDevice(bsdName: "disk7", byteCount: 64_000))
+        let descriptor = open("/dev/null", O_RDONLY)
+        defer { close(descriptor) }
+        #expect(descriptor >= 0)
+
+        try RawDeviceDescriptorValidator.validate(
+            descriptor: descriptor,
+            rawDevicePath: "/dev/null",
+            expectedDevice: source,
+            resolveDevice: { _ in source }
+        )
+
+        let writableDescriptor = open("/dev/null", O_RDWR)
+        defer { close(writableDescriptor) }
+        #expect(throws: AuthorizedImagingError.invalidRawDevice) {
+            try RawDeviceDescriptorValidator.validate(
+                descriptor: writableDescriptor,
+                rawDevicePath: "/dev/null",
+                expectedDevice: source,
+                resolveDevice: { _ in source }
+            )
+        }
+    }
+
+    @Test("authopen file descriptors are received through SCM_RIGHTS")
+    func authorizedDescriptorTransfer() throws {
+        var sockets = [Int32](repeating: -1, count: 2)
+        #expect(socketpair(AF_UNIX, SOCK_STREAM, 0, &sockets) == 0)
+        defer {
+            close(sockets[0])
+            close(sockets[1])
+        }
+
+        let source = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DataRevivalDescriptorTransfer-\(UUID().uuidString)")
+        try Data("authorized card bytes".utf8).write(to: source)
+        defer { try? FileManager.default.removeItem(at: source) }
+        let sourceDescriptor = open(source.path, O_RDONLY)
+        defer { close(sourceDescriptor) }
+
+        try sendFileDescriptor(sourceDescriptor, to: sockets[1])
+        let receivedDescriptor = try FileDescriptorReceiver.receive(from: sockets[0])
+        defer { close(receivedDescriptor) }
+
+        let handle = FileHandle(fileDescriptor: receivedDescriptor, closeOnDealloc: false)
+        #expect(try handle.readToEnd() == Data("authorized card bytes".utf8))
     }
 
     @Test("A child imaging process can read an already-open source descriptor")
@@ -571,10 +584,15 @@ struct RecoveryFoundationTests {
         )
         try await DDRescueRunner().image(command: resumeCommand)
         #expect(resumeCommand.arguments.contains("/dev/rdisk9"))
-        let privilegedRequest = PrivilegedImagingRequest(plan: resumed)
-        try privilegedRequest.validateStructure()
-        #expect(privilegedRequest.source.bsdName == "disk9")
-        #expect(privilegedRequest.source.deviceGUID == guid)
+        let invocation = AuthopenInvocation(device: resumed.sourceDevice)
+        #expect(invocation.rawDeviceURL.path == "/dev/rdisk9")
+        #expect(invocation.authorizationRight == "sys.openfile.readonly./dev/rdisk9")
+        let descriptorCommand = DDRescueCommand.image(
+            executableURL: URL(fileURLWithPath: "/usr/bin/true"),
+            plan: resumed,
+            sourcePath: "/dev/fd/0"
+        )
+        #expect(descriptorCommand.arguments.contains("/dev/fd/0"))
         let persistedRecord = try JSONDecoder().decode(
             CardImagingResumeRecord.self,
             from: Data(contentsOf: initialPlan.resumeRecordURL)
@@ -1172,6 +1190,39 @@ private func interruptedMapfile(byteCount: Int64) -> String {
     0 \(rescued) +
     \(rescued) \(pending) ?
     """
+}
+
+private func sendFileDescriptor(_ descriptor: Int32, to socket: Int32) throws {
+    var payload: UInt8 = 0
+    var control = [UInt8](
+        repeating: 0,
+        count: MemoryLayout<cmsghdr>.stride + MemoryLayout<Int32>.stride
+    )
+    var message = msghdr()
+
+    let sent = withUnsafeMutableBytes(of: &payload) { payloadBytes in
+        var vector = iovec(iov_base: payloadBytes.baseAddress, iov_len: 1)
+        return withUnsafeMutablePointer(to: &vector) { vectorPointer in
+            message.msg_iov = vectorPointer
+            message.msg_iovlen = 1
+            return control.withUnsafeMutableBytes { controlBytes in
+                guard let baseAddress = controlBytes.baseAddress else { return -1 }
+                let header = baseAddress.assumingMemoryBound(to: cmsghdr.self)
+                header.pointee.cmsg_len = socklen_t(
+                    MemoryLayout<cmsghdr>.stride + MemoryLayout<Int32>.size
+                )
+                header.pointee.cmsg_level = SOL_SOCKET
+                header.pointee.cmsg_type = SCM_RIGHTS
+                baseAddress
+                    .advanced(by: MemoryLayout<cmsghdr>.stride)
+                    .storeBytes(of: descriptor, as: Int32.self)
+                message.msg_control = baseAddress
+                message.msg_controllen = socklen_t(controlBytes.count)
+                return sendmsg(socket, &message, 0)
+            }
+        }
+    }
+    guard sent == 1 else { throw CocoaError(.fileWriteUnknown) }
 }
 
 private extension JSONDecoder {

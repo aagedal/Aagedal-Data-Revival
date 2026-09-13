@@ -13,8 +13,6 @@ engine_artifacts="$app/Contents/Resources/RecoveryEngines"
 info_plist="$app/Contents/Info.plist"
 bundle_executable="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$info_plist")"
 main_executable="$app/Contents/MacOS/$bundle_executable"
-imaging_helper="$app/Contents/MacOS/DataRevivalImagingHelper"
-imaging_helper_plist="$app/Contents/Library/LaunchDaemons/com.aagedal.DataRevival.ImagingHelper.plist"
 required_tools=(photorec ddrescue)
 
 display_name="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$info_plist")"
@@ -114,28 +112,11 @@ audit_signature() {
     done
 }
 
-if [[ ! -x "$imaging_helper" ]]; then
-    echo "error: privileged imaging helper is missing: $imaging_helper" >&2
+if [[ -e "$app/Contents/MacOS/DataRevivalImagingHelper" ||
+      -e "$app/Contents/Library/LaunchDaemons/com.aagedal.DataRevival.ImagingHelper.plist" ]]; then
+    echo "error: obsolete privileged imaging-helper payload is present" >&2
     exit 1
 fi
-if [[ ! -f "$imaging_helper_plist" || -L "$imaging_helper_plist" ]]; then
-    echo "error: imaging helper LaunchDaemon property list is missing" >&2
-    exit 1
-fi
-
-helper_label="$(/usr/libexec/PlistBuddy -c 'Print :Label' "$imaging_helper_plist")"
-helper_program="$(/usr/libexec/PlistBuddy -c 'Print :BundleProgram' "$imaging_helper_plist")"
-helper_mach_service="$(/usr/libexec/PlistBuddy -c 'Print :MachServices:com.aagedal.DataRevival.ImagingHelper' "$imaging_helper_plist")"
-if [[ "$helper_label" != "com.aagedal.DataRevival.ImagingHelper" ||
-      "$helper_program" != "Contents/MacOS/DataRevivalImagingHelper" ||
-      "$helper_mach_service" != "true" ]]; then
-    echo "error: imaging helper LaunchDaemon identity does not match the signed helper" >&2
-    exit 1
-fi
-
-audit_architecture "$imaging_helper"
-audit_dependencies "$imaging_helper"
-audit_signature "$imaging_helper"
 
 for tool in "${required_tools[@]}"; do
     binary="$helpers/$tool"
@@ -204,4 +185,4 @@ done < <(find "$helpers" "$app/Contents/Frameworks" -type f 2>/dev/null || true)
 
 codesign --verify --deep --strict --verbose=2 "$app"
 audit_signature "$app"
-echo "Bundle audit passed: hardened signed code, the imaging helper, recovery engines, and checksum-verified distribution artifacts are complete."
+echo "Bundle audit passed: hardened signed code, recovery engines, and checksum-verified distribution artifacts are complete."

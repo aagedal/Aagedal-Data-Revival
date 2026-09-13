@@ -193,6 +193,69 @@ struct CardImagingPlan: Sendable, Equatable {
             throw CardImagingError.sourceIdentityChanged
         }
     }
+
+    /// Repeats the mutable destination checks immediately before execution.
+    /// A prepared plan can sit in the UI while files, free space, mounts, or
+    /// symlinks change underneath it.
+    func validateForExecution(fileManager: FileManager = .default) throws {
+        let parent = imageURL.deletingLastPathComponent()
+        guard parent.resolvingSymlinksInPath() == parent else {
+            throw CardImagingError.destinationIsNotWritable
+        }
+        let destinationDisk = try DiskIdentityResolver.wholeDiskBSDName(containing: parent)
+        let availableCapacity = try RecoveryVolumeCapacity.available(at: parent)
+        let available = try Self.validateDestination(
+            sourceDevice: sourceDevice,
+            parent: parent,
+            destinationWholeDiskBSDName: destinationDisk,
+            availableCapacity: availableCapacity,
+            fileManager: fileManager
+        )
+
+        switch mode {
+        case .create:
+            guard !Self.fileSystemEntryExists(at: imageURL, fileManager: fileManager),
+                  !Self.fileSystemEntryExists(at: mapURL, fileManager: fileManager),
+                  !Self.fileSystemEntryExists(at: runnerLogURL, fileManager: fileManager),
+                  !Self.fileSystemEntryExists(at: resumeRecordURL, fileManager: fileManager) else {
+                throw CardImagingError.outputAlreadyExists
+            }
+            guard available >= sourceDevice.byteCount else {
+                throw CardImagingError.insufficientSpace(
+                    required: sourceDevice.byteCount,
+                    available: available
+                )
+            }
+        case .resume:
+            guard let imageSizes = Self.regularFileSizes(at: imageURL, fileManager: fileManager),
+                  imageSizes.logical <= sourceDevice.byteCount,
+                  let mapSizes = Self.regularFileSizes(at: mapURL, fileManager: fileManager),
+                  mapSizes.logical > 0 else {
+                throw CardImagingError.resumeFilesMissing
+            }
+            if Self.fileSystemEntryExists(at: runnerLogURL, fileManager: fileManager),
+               Self.regularFileSizes(at: runnerLogURL, fileManager: fileManager) == nil {
+                throw CardImagingError.resumeFilesMissing
+            }
+            let snapshot = try? DDRescueMapfile.parse(
+                Data(contentsOf: mapURL),
+                expectedByteCount: sourceDevice.byteCount
+            )
+            guard snapshot != nil else { throw CardImagingError.resumeMapInvalid }
+            let persistedRecord = try? JSONDecoder().decode(
+                CardImagingResumeRecord.self,
+                from: Data(contentsOf: resumeRecordURL)
+            )
+            guard persistedRecord == resumeRecord else {
+                throw CardImagingError.resumeMetadataInvalid
+            }
+            let existingAllocation = min(imageSizes.allocated, sourceDevice.byteCount)
+            let required = sourceDevice.byteCount - existingAllocation
+            guard available >= required else {
+                throw CardImagingError.insufficientSpace(required: required, available: available)
+            }
+        }
+    }
 }
 
 struct CardImagingResumeRecord: Codable, Sendable, Equatable {
@@ -320,12 +383,16 @@ struct DDRescueCommand: Sendable, Equatable {
         self.sourceByteCount = sourceByteCount
     }
 
-    static func image(executableURL: URL, plan: CardImagingPlan) -> DDRescueCommand {
+    static func image(
+        executableURL: URL,
+        plan: CardImagingPlan,
+        sourcePath: String? = nil
+    ) -> DDRescueCommand {
         DDRescueCommand(
             executableURL: executableURL,
             arguments: [
                 "--verbose",
-                plan.sourceDeviceURL.path,
+                sourcePath ?? plan.sourceDeviceURL.path,
                 plan.imageURL.path,
                 plan.mapURL.path
             ],
@@ -371,12 +438,16 @@ final class DDRescueRunner: @unchecked Sendable {
 
     func image(
         command: DDRescueCommand,
+        sourceFileHandle: FileHandle? = nil,
         onProgress: (@Sendable (DDRescueMapSnapshot) async -> Void)? = nil
     ) async throws {
         let process = Process()
         process.executableURL = command.executableURL
         process.arguments = command.arguments
         process.currentDirectoryURL = command.currentDirectoryURL
+        if let sourceFileHandle {
+            process.standardInput = sourceFileHandle
+        }
 
         try lock.withLock {
             guard activeProcess == nil else { throw RunnerError.alreadyRunning }

@@ -48,13 +48,13 @@ jobs:
           app="$RUNNER_TEMP/DataRevivalDerived/Build/Products/Release/Aagedal Data Revival.app"
           for binary in \
             "$app/Contents/MacOS/Aagedal Data Revival" \
-            "$app/Contents/MacOS/DataRevivalImagingHelper" \
             "$app/Contents/Helpers/photorec" \
             "$app/Contents/Helpers/ddrescue"
           do
             test "$(lipo -archs "$binary")" = arm64
           done
-          test -f "$app/Contents/Library/LaunchDaemons/com.aagedal.DataRevival.ImagingHelper.plist"
+          test ! -e "$app/Contents/MacOS/DataRevivalImagingHelper"
+          test ! -e "$app/Contents/Library/LaunchDaemons/com.aagedal.DataRevival.ImagingHelper.plist"
           info_plist="$app/Contents/Info.plist"
           test "$(plutil -extract CFBundleDisplayName raw -o - "$info_plist")" = 'Aagedal Data Revival'
           test "$(plutil -extract LSApplicationCategoryType raw -o - "$info_plist")" = 'public.app-category.utilities'

@@ -1,7 +1,6 @@
 import SwiftUI
 import AppKit
 import QuickLookUI
-import ServiceManagement
 import UniformTypeIdentifiers
 
 @main
@@ -169,7 +168,6 @@ private struct RecoveryView: View {
         .tint(.teal)
         .task {
             recovery.loadSessions()
-            imaging.refreshHelperStatus()
         }
         .onReceive(
             NSWorkspace.shared.notificationCenter.publisher(
@@ -650,49 +648,24 @@ private struct RecoveryView: View {
             }
         case .idle, .failed:
             VStack(alignment: .leading, spacing: 10) {
-                if imaging.helperStatus == .enabled {
-                    HStack {
-                        Button("Check imaging destination…") {
-                            chooseCardImageDestination(for: device)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        Button("Check existing image for resume…") {
-                            chooseCardImageToResume(for: device)
-                        }
-                        Button("Start imaging") {
-                            if let plan = preparedImagingPlan {
-                                imaging.start(plan: plan)
-                            }
-                        }
-                        .disabled(preparedImagingPlan?.sourceDevice.id != device.id)
+                HStack {
+                    Button("Check imaging destination…") {
+                        chooseCardImageDestination(for: device)
                     }
-                } else if imaging.helperStatus == .requiresApproval {
-                    HStack {
-                        Button("Open Login Items Settings") {
-                            imaging.openHelperApprovalSettings()
-                        }
-                        .buttonStyle(.borderedProminent)
-                        Button("Check approval") { imaging.refreshHelperStatus() }
+                    .buttonStyle(.borderedProminent)
+                    Button("Check existing image for resume…") {
+                        chooseCardImageToResume(for: device)
                     }
-                    Text("An administrator must allow the Data Revival helper under Login Items & Extensions before the card can be imaged.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    HStack {
-                        Button("Install imaging helper") {
-                            do {
-                                try imaging.installHelper()
-                            } catch {
-                                issue = error.localizedDescription
-                            }
+                    Button("Start imaging") {
+                        if let plan = preparedImagingPlan {
+                            imaging.start(plan: plan)
                         }
-                        .buttonStyle(.borderedProminent)
-                        Button("Refresh") { imaging.refreshHelperStatus() }
                     }
-                    Text("The helper opens only the selected raw card read-only and runs the bundled imaging engine after administrator approval.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    .disabled(preparedImagingPlan?.sourceDevice.id != device.id)
                 }
+                Text("When imaging starts, macOS asks for temporary read-only access to this card. No background helper is installed.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
     }
