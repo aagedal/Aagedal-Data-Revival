@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import QuickLookUI
+import ServiceManagement
 import UniformTypeIdentifiers
 
 @main
@@ -71,6 +72,7 @@ private enum RecoveredFileFilter: String, CaseIterable, Identifiable {
 private struct RecoveryView: View {
     @StateObject private var recovery = RecoveryViewModel()
     @StateObject private var diskDevices = DiskDeviceMonitor()
+    @StateObject private var imaging = CardImagingViewModel()
     @State private var workspace: Workspace? = .recover
     @State private var imageURL: URL?
     @State private var scanProfile: RecoveryScanProfile = .photos
@@ -115,7 +117,9 @@ private struct RecoveryView: View {
                 }.padding(.horizontal, 12).padding(.top, 18)
                 List(Workspace.allCases, selection: $workspace) { item in
                     Label(item.rawValue, systemImage: item.symbol).tag(item)
-                }.listStyle(.sidebar)
+                }
+                .listStyle(.sidebar)
+                .disabled(imaging.isActive)
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Early prototype", systemImage: "hammer").font(.callout.weight(.medium))
                     Text("Explore sample files or run an experimental photo scan from a raw disk image.")
@@ -142,7 +146,10 @@ private struct RecoveryView: View {
             }
         }
         .tint(.teal)
-        .task { recovery.loadSessions() }
+        .task {
+            recovery.loadSessions()
+            imaging.refreshHelperStatus()
+        }
         .onChange(of: workspace) { _, workspace in
             if workspace == .tools {
                 diskDevices.start()
@@ -153,19 +160,23 @@ private struct RecoveryView: View {
             }
         }
         .alert("Recovery could not continue", isPresented: Binding(
-            get: { issue != nil || recovery.errorMessage != nil },
+            get: { issue != nil || recovery.errorMessage != nil || imagingFailureMessage != nil },
             set: {
                 if !$0 {
                     issue = nil
                     recovery.errorMessage = nil
+                    imaging.clearFailure()
                 }
             }
         )) {
             Button("OK") {
                 issue = nil
                 recovery.errorMessage = nil
+                imaging.clearFailure()
             }
-        } message: { Text(issue ?? recovery.errorMessage ?? "Unknown error") }
+        } message: {
+            Text(issue ?? recovery.errorMessage ?? imagingFailureMessage ?? "Unknown error")
+        }
         .alert("Export complete", isPresented: Binding(
             get: { exportConfirmation != nil },
             set: { if !$0 { exportConfirmation = nil } }
@@ -502,6 +513,7 @@ private struct RecoveryView: View {
                     .padding(.vertical, 6)
                     .tag(device.id)
                 }
+                .disabled(imaging.isActive)
 
                 if let id = diskSelection,
                    let device = diskDevices.devices.first(where: { $0.id == id }) {
@@ -519,17 +531,16 @@ private struct RecoveryView: View {
                             .font(.callout)
                             .foregroundStyle(.green)
                         }
-                        HStack {
-                            Button("Check imaging destination…") {
-                                chooseCardImageDestination(for: device)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            Button("Check existing image for resume…") {
-                                chooseCardImageToResume(for: device)
-                            }
-                            Button("Start imaging") {}
-                                .disabled(true)
-                                .help("The privileged helper must be installed and connected before raw-device imaging can start.")
+                        imagingControls(for: device)
+                        if let snapshot = imaging.progress,
+                           imaging.activePlan?.sourceDevice.id == device.id {
+                            ProgressView(
+                                value: Double(snapshot.rescuedByteCount),
+                                total: Double(snapshot.totalByteCount)
+                            )
+                            Text(imagingProgressSummary(snapshot))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                     }
                     .padding(18)
@@ -551,7 +562,98 @@ private struct RecoveryView: View {
         .onAppear { diskDevices.start() }
         .onDisappear { diskDevices.stop() }
         .onChange(of: diskSelection) { _, _ in
-            preparedImagingPlan = nil
+            if !imaging.isActive {
+                preparedImagingPlan = nil
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func imagingControls(for device: StorageDevice) -> some View {
+        switch imaging.state {
+        case .preparing:
+            HStack {
+                ProgressView().controlSize(.small)
+                Text("Authorizing, unmounting, and revalidating the card…")
+                Spacer()
+                Button("Cancel") { imaging.cancel() }
+            }
+        case .imaging:
+            HStack {
+                ProgressView().controlSize(.small)
+                Text("Creating a resumable card image…")
+                Spacer()
+                Button("Cancel") { imaging.cancel() }
+            }
+        case .cancelling:
+            HStack {
+                ProgressView().controlSize(.small)
+                Text("Stopping safely and preserving resume files…")
+            }
+        case .completed:
+            VStack(alignment: .leading, spacing: 10) {
+                Label("Card imaging completed", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                Text("Choose whether macOS should remount the card or eject it. The completed image is ready to scan.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                HStack {
+                    Button("Remount card") { imaging.finish(.remount) }
+                        .buttonStyle(.borderedProminent)
+                    Button("Eject card") { imaging.finish(.eject) }
+                    if let plan = imaging.activePlan {
+                        Button("Show image in Finder") {
+                            NSWorkspace.shared.activateFileViewerSelecting([plan.imageURL])
+                        }
+                    }
+                }
+            }
+        case .idle, .failed:
+            VStack(alignment: .leading, spacing: 10) {
+                if imaging.helperStatus == .enabled {
+                    HStack {
+                        Button("Check imaging destination…") {
+                            chooseCardImageDestination(for: device)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        Button("Check existing image for resume…") {
+                            chooseCardImageToResume(for: device)
+                        }
+                        Button("Start imaging") {
+                            if let plan = preparedImagingPlan {
+                                imaging.start(plan: plan)
+                            }
+                        }
+                        .disabled(preparedImagingPlan?.sourceDevice.id != device.id)
+                    }
+                } else if imaging.helperStatus == .requiresApproval {
+                    HStack {
+                        Button("Open Login Items Settings") {
+                            imaging.openHelperApprovalSettings()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        Button("Check approval") { imaging.refreshHelperStatus() }
+                    }
+                    Text("An administrator must allow the Data Revival helper under Login Items & Extensions before the card can be imaged.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    HStack {
+                        Button("Install imaging helper") {
+                            do {
+                                try imaging.installHelper()
+                            } catch {
+                                issue = error.localizedDescription
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        Button("Refresh") { imaging.refreshHelperStatus() }
+                    }
+                    Text("The helper opens only the selected raw card read-only and runs the bundled imaging engine after administrator approval.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
     }
 
@@ -822,6 +924,18 @@ private struct RecoveryView: View {
             }
             return "\(plan.imageURL.lastPathComponent) matches this card and has enough space to resume."
         }
+    }
+
+    private var imagingFailureMessage: String? {
+        guard case let .failed(message) = imaging.state else { return nil }
+        return message
+    }
+
+    private func imagingProgressSummary(_ snapshot: DDRescueMapSnapshot) -> String {
+        let rescued = snapshot.rescuedByteCount.formatted(.byteCount(style: .file))
+        let pending = snapshot.pendingByteCount.formatted(.byteCount(style: .file))
+        let bad = snapshot.badSectorByteCount.formatted(.byteCount(style: .file))
+        return "\(rescued) rescued • \(pending) pending • \(bad) in bad-sector regions"
     }
 
     private func sessionStatusColor(_ status: RecoverySession.Status) -> Color {

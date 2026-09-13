@@ -16,6 +16,11 @@ Aagedal Data Revival.app/
     Helpers/
       photorec
       ddrescue
+    Library/
+      LaunchDaemons/
+        com.aagedal.DataRevival.ImagingHelper.plist
+    MacOS/
+      DataRevivalImagingHelper
     Resources/
       RecoveryEngines/
         Licenses/
@@ -41,6 +46,15 @@ inputs are retained in those unmodified source archives. In particular,
 PhotoRec's GPL terms affect how the final application and its source are
 distributed.
 
+The arm64-only `DataRevivalImagingHelper` executable is embedded and signed
+before the outer app. Its `SMAppService` LaunchDaemon property list remains
+inside the app bundle and points to that relative executable with
+`BundleProgram`, so moving the app does not leave an independent privileged
+binary behind. The helper accepts only the signed Data Revival app over its
+Mach service, verifies an administrator authorization right for imaging,
+revalidates the source and destination, and passes an already-open read-only
+raw-device descriptor to bundled ddrescue.
+
 The reviewed source versions and checksums are locked in
 `Configuration/RecoveryEngines.lock.json`. Build and audit the arm64 engines
 with `Scripts/build-recovery-engines.sh`; selection rationale and deliberately
@@ -64,10 +78,10 @@ After creating and signing an archive, run:
 Scripts/audit-app-bundle.sh "/path/to/Aagedal Data Revival.app"
 ```
 
-The audit fails when the app or bundled native code is not arm64-only, a
+The audit fails when the app, imaging helper, or bundled native code is not arm64-only, a
 required engine is absent, is not executable, is not signed, or links to an
 absolute dependency outside macOS system locations. It also rejects external
-`LC_RPATH` entries, verifies every packaged engine artifact against the build
+`LC_RPATH` entries, validates the LaunchDaemon/Mach-service identity, verifies every packaged engine artifact against the build
 checksums, requires both corresponding source archives, and verifies the outer
 app's nested signature. `SHA256SUMS` retains the reproducible pre-sign engine
 digests; the audit validates shipped executable identity with code signatures

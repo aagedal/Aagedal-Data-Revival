@@ -1,5 +1,6 @@
 import Foundation
 import CoreGraphics
+import Darwin
 import DiskArbitration
 import ImageIO
 import Testing
@@ -300,6 +301,63 @@ struct RecoveryFoundationTests {
         #expect(command.sourceByteCount == source.byteCount)
     }
 
+    @Test("Privileged imaging requests bind every sidecar to the approved image")
+    func privilegedImagingRequestValidation() throws {
+        let source = try #require(makeStorageDevice(bsdName: "disk7", byteCount: 64_000))
+        let plan = CardImagingPlan(
+            sourceDevice: source,
+            imageURL: URL(fileURLWithPath: "/Volumes/Recovery Drive/camera.img"),
+            mapURL: URL(fileURLWithPath: "/Volumes/Recovery Drive/camera.img.map"),
+            runnerLogURL: URL(fileURLWithPath: "/Volumes/Recovery Drive/camera.img.ddrescue.log"),
+            resumeRecordURL: URL(fileURLWithPath: "/Volumes/Recovery Drive/camera.img.datarevival.json"),
+            resumeRecord: CardImagingResumeRecord(source: .init(device: source)),
+            mapSnapshot: nil,
+            mode: .create
+        )
+        let request = PrivilegedImagingRequest(
+            plan: plan,
+            operationIdentifier: UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
+        )
+        try request.validateStructure()
+
+        var object = try #require(
+            JSONSerialization.jsonObject(with: JSONEncoder().encode(request)) as? [String: Any]
+        )
+        object["mapPath"] = "/tmp/unapproved.map"
+        let changed = try JSONDecoder().decode(
+            PrivilegedImagingRequest.self,
+            from: JSONSerialization.data(withJSONObject: object)
+        )
+        #expect(throws: PrivilegedImagingError.invalidDestination) {
+            try changed.validateStructure()
+        }
+    }
+
+    @Test("A child imaging process can read an already-open source descriptor")
+    func processInheritsImagingSourceDescriptor() throws {
+        let source = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DataRevivalInheritedDescriptor-\(UUID().uuidString)")
+        try Data("read-only recovery source".utf8).write(to: source)
+        defer { try? FileManager.default.removeItem(at: source) }
+
+        let descriptor = open(source.path, O_RDONLY | O_NOFOLLOW)
+        defer { close(descriptor) }
+        #expect(descriptor >= 0)
+
+        let output = Pipe()
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/cat")
+        process.arguments = ["/dev/fd/0"]
+        process.standardInput = FileHandle(fileDescriptor: descriptor, closeOnDealloc: false)
+        process.standardOutput = output
+        try process.run()
+        process.waitUntilExit()
+        let data = try output.fileHandleForReading.readToEnd()
+
+        #expect(process.terminationStatus == 0)
+        #expect(data == Data("read-only recovery source".utf8))
+    }
+
     @Test("Card imaging revalidates identity around a non-forced whole-disk unmount")
     func cardImagingSourcePreparation() async throws {
         let source = try #require(makeStorageDevice(
@@ -483,6 +541,10 @@ struct RecoveryFoundationTests {
         )
         try await DDRescueRunner().image(command: resumeCommand)
         #expect(resumeCommand.arguments.contains("/dev/rdisk9"))
+        let privilegedRequest = PrivilegedImagingRequest(plan: resumed)
+        try privilegedRequest.validateStructure()
+        #expect(privilegedRequest.source.bsdName == "disk9")
+        #expect(privilegedRequest.source.deviceGUID == guid)
         let persistedRecord = try JSONDecoder().decode(
             CardImagingResumeRecord.self,
             from: Data(contentsOf: initialPlan.resumeRecordURL)

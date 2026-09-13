@@ -6,8 +6,50 @@
 	objectVersion = 90;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		000000000000000000000210 /* DataRevivalImagingHelper in Embed Imaging Helper */ = {isa = PBXBuildFile; fileRef = 000000000000000000000121 /* DataRevivalImagingHelper */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		000000000000000000000211 /* com.aagedal.DataRevival.ImagingHelper.plist in Copy LaunchDaemons Property Lists */ = {isa = PBXBuildFile; fileRef = 000000000000000000000122 /* com.aagedal.DataRevival.ImagingHelper.plist */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		000000000000000000000220 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 000000000000000000000000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 000000000000000100000001;
+			remoteInfo = DataRevivalImagingHelper;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		000000000000000160000000 /* Embed Imaging Helper */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 6;
+			files = (
+				000000000000000000000210 /* DataRevivalImagingHelper in Embed Imaging Helper */,
+			);
+			name = "Embed Imaging Helper";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		000000000000000160000001 /* Copy LaunchDaemons Property Lists */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = Contents/Library/LaunchDaemons;
+			dstSubfolderSpec = 1;
+			files = (
+				000000000000000000000211 /* com.aagedal.DataRevival.ImagingHelper.plist in Copy LaunchDaemons Property Lists */,
+			);
+			name = "Copy LaunchDaemons Property Lists";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		000000000000000000000120 /* Aagedal Data Revival.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Aagedal Data Revival.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		000000000000000000000121 /* DataRevivalImagingHelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = DataRevivalImagingHelper; sourceTree = BUILT_PRODUCTS_DIR; };
+		000000000000000000000122 /* com.aagedal.DataRevival.ImagingHelper.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = LaunchDaemons/com.aagedal.DataRevival.ImagingHelper.plist; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -21,10 +63,20 @@
 			path = Sources/DataRevival;
 			sourceTree = "<group>";
 		};
+		000000000000000000000012 /* Imaging Helper */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = ImagingHelper;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		000000000000000130000000 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			files = (
+			);
+		};
+		000000000000000130000001 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
 			);
@@ -37,6 +89,8 @@
 			children = (
 				000000000000000000000010 /* Aagedal Data Revival */,
 				000000000000000000000011 /* Recovery Sources */,
+				000000000000000000000012 /* Imaging Helper */,
+				000000000000000000000122 /* com.aagedal.DataRevival.ImagingHelper.plist */,
 				000000000000000000000020 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -45,6 +99,7 @@
 			isa = PBXGroup;
 			children = (
 				000000000000000000000120 /* Aagedal Data Revival.app */,
+				000000000000000000000121 /* DataRevivalImagingHelper */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -59,6 +114,8 @@
 				000000000000000120000000 /* Sources */,
 				000000000000000130000000 /* Frameworks */,
 				000000000000000140000000 /* Resources */,
+				000000000000000160000000 /* Embed Imaging Helper */,
+				000000000000000160000001 /* Copy LaunchDaemons Property Lists */,
 				000000000000000150000000 /* Embed Recovery Engines */,
 			);
 			buildRules = (
@@ -68,9 +125,29 @@
 				000000000000000000000011 /* Recovery Sources */,
 			);
 			name = "Aagedal Data Revival";
+			dependencies = (
+				000000000000000000000230 /* PBXTargetDependency */,
+			);
 			productName = DataRevival;
 			productReference = 000000000000000000000120 /* Aagedal Data Revival.app */;
 			productType = "com.apple.product-type.application";
+		};
+		000000000000000100000001 /* DataRevivalImagingHelper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 000000000000000110000001 /* Build configuration list for PBXNativeTarget "DataRevivalImagingHelper" */;
+			buildPhases = (
+				000000000000000120000001 /* Sources */,
+				000000000000000130000001 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			fileSystemSynchronizedGroups = (
+				000000000000000000000012 /* Imaging Helper */,
+			);
+			name = DataRevivalImagingHelper;
+			productName = DataRevivalImagingHelper;
+			productReference = 000000000000000000000121 /* DataRevivalImagingHelper */;
+			productType = "com.apple.product-type.tool";
 		};
 /* End PBXNativeTarget section */
 
@@ -83,6 +160,9 @@
 				LastUpgradeCheck = 2700;
 				TargetAttributes = {
 					000000000000000100000000 = {
+						CreatedOnToolsVersion = 26.3;
+					};
+					000000000000000100000001 = {
 						CreatedOnToolsVersion = 26.3;
 					};
 				};
@@ -102,6 +182,7 @@
 			projectRoot = "";
 			targets = (
 				000000000000000100000000 /* Aagedal Data Revival */,
+				000000000000000100000001 /* DataRevivalImagingHelper */,
 			);
 		};
 /* End PBXProject section */
@@ -143,7 +224,20 @@
 			files = (
 			);
 		};
+		000000000000000120000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			files = (
+			);
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		000000000000000000000230 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 000000000000000100000001 /* DataRevivalImagingHelper */;
+			targetProxy = 000000000000000000000220 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		000000000000000011000000 /* Debug configuration for PBXProject "Aagedal Data Revival" */ = {
@@ -360,6 +454,51 @@
 			};
 			name = Release;
 		};
+		000000000000000111000001 /* Debug configuration for PBXNativeTarget "DataRevivalImagingHelper" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGN_STYLE = Automatic;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3R5QGG9DW6;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aagedal.DataRevival.ImagingHelper;
+				PRODUCT_NAME = DataRevivalImagingHelper;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		000000000000000112000001 /* Release configuration for PBXNativeTarget "DataRevivalImagingHelper" */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ARCHS = arm64;
+				CODE_SIGN_STYLE = Automatic;
+				CREATE_INFOPLIST_SECTION_IN_BINARY = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3R5QGG9DW6;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.aagedal.DataRevival.ImagingHelper;
+				PRODUCT_NAME = DataRevivalImagingHelper;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -376,6 +515,14 @@
 			buildConfigurations = (
 				000000000000000111000000 /* Debug configuration for PBXNativeTarget "Aagedal Data Revival" */,
 				000000000000000112000000 /* Release configuration for PBXNativeTarget "Aagedal Data Revival" */,
+			);
+			defaultConfigurationName = Release;
+		};
+		000000000000000110000001 /* Build configuration list for PBXNativeTarget "DataRevivalImagingHelper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				000000000000000111000001 /* Debug configuration for PBXNativeTarget "DataRevivalImagingHelper" */,
+				000000000000000112000001 /* Release configuration for PBXNativeTarget "DataRevivalImagingHelper" */,
 			);
 			defaultConfigurationName = Release;
 		};
