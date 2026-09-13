@@ -28,6 +28,7 @@ struct RecoveryScanProgress: Sendable, Equatable {
         var byteCount: Int64 = 0
         for case let url as URL in enumerator {
             guard url.deletingLastPathComponent().lastPathComponent.hasPrefix("recovered."),
+                  url.lastPathComponent != "report.xml",
                   let values = try? url.resourceValues(forKeys: keys),
                   values.isRegularFile == true else { continue }
             fileCount += 1
@@ -201,6 +202,7 @@ final class PhotoRecRunner: @unchecked Sendable {
         var results: [RecoveredFile] = []
         for case let url as URL in enumerator {
             guard url.deletingLastPathComponent().lastPathComponent.hasPrefix("recovered.") else { continue }
+            guard url.lastPathComponent != "report.xml" else { continue }
             let values = try url.resourceValues(forKeys: keys)
             guard values.isRegularFile == true else { continue }
             results.append(

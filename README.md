@@ -22,6 +22,8 @@ Package-manager engines are a debug-only convenience. Release builds resolve `ph
 
 Production source inputs are pinned to PhotoRec 7.2 and GNU ddrescue 1.30. On an Apple silicon development Mac, `Scripts/build-recovery-engines.sh` verifies the upstream source hashes and produces audited arm64-only binaries plus their license and corresponding-source artifacts. See [Recovery engine versions](Documentation/RecoveryEngineVersions.md) for the selection and build details.
 
+The versioned recovery-quality benchmark begins with non-sensitive synthetic JPEG fixtures from genuinely quick-formatted FAT32 and exFAT images. Its release gate requires byte-exact SHA-256 matches rather than treating a filename or decodable preview as successful recovery. See [Recovery-quality benchmark](Documentation/RecoveryQualityBenchmark.md) for the current support matrix, fixture-generation procedure, and remaining camera-RAW and damage scenarios.
+
 Release builds require those generated products and embed the two engines under `Contents/Helpers`; they fail closed when the products are absent. Exact upstream licenses, author notices, the reviewed build lock, checksums, and the corresponding source archives are embedded under `Contents/Resources/RecoveryEngines`, so every binary release carries its own engine sources. Signed builds sign the engines before Xcode signs the outer app. Debug builds can still use the explicitly documented package-manager fallback when local engine products have not been built.
 
 This is an integration spike, not a production recovery release. It currently performs a whole-image JPEG carve with basic decode and end-marker validation. Use disposable test images and copies of owned media.

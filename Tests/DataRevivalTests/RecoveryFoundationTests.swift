@@ -901,6 +901,7 @@ struct RecoveryFoundationTests {
         let recovered = root.appendingPathComponent("recovered.1", isDirectory: true)
         try FileManager.default.createDirectory(at: recovered, withIntermediateDirectories: true)
         try Data([1, 2, 3]).write(to: recovered.appendingPathComponent("f000001.jpg"))
+        try Data("PhotoRec report".utf8).write(to: recovered.appendingPathComponent("report.xml"))
         try Data([4]).write(to: root.appendingPathComponent("runner.log"))
         defer { try? FileManager.default.removeItem(at: root) }
 
@@ -920,6 +921,7 @@ struct RecoveryFoundationTests {
         try FileManager.default.createDirectory(at: unrelated, withIntermediateDirectories: true)
         try Data([1, 2, 3]).write(to: recovered.appendingPathComponent("f000001.jpg"))
         try Data([4, 5]).write(to: recovered.appendingPathComponent("f000002.jpg"))
+        try Data("PhotoRec report".utf8).write(to: recovered.appendingPathComponent("report.xml"))
         try Data([6, 7, 8, 9]).write(to: unrelated.appendingPathComponent("not-recovered.jpg"))
         try Data([0]).write(to: root.appendingPathComponent("runner.log"))
         defer { try? FileManager.default.removeItem(at: root) }

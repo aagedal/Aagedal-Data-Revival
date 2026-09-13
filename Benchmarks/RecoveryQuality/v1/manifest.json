@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "suiteVersion": "1.0.0",
+  "acceptance": {
+    "minimumExactRecoveryRate": 1.0
+  },
+  "originals": [
+    {
+      "id": "synthetic-jpeg",
+      "encodedPath": "originals/synthetic-gradient.jpg.base64",
+      "filename": "synthetic-gradient.jpg",
+      "sha256": "ece6530f7391025fe807d9a375bb1d9e28f296b5d8f2e58fe7e4c847aa803120",
+      "format": "JPEG",
+      "provenance": "Programmatically generated 128x96 RGBA gradient; no private or third-party media."
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "fat32-quick-format-contiguous-jpeg",
+      "filesystem": "FAT32",
+      "archivePath": "fixtures/fat32-quick-format-contiguous-jpeg.img.gz",
+      "archiveSHA256": "9c4197e3f6835ed301662139a2574cfd43392116429f37f95e67955bf49ceb0c",
+      "expectedOriginalIDs": [
+        "synthetic-jpeg"
+      ],
+      "notes": "The JPEG was copied to a fresh FAT32 volume before a second FAT32 quick format."
+    },
+    {
+      "id": "exfat-quick-format-contiguous-jpeg",
+      "filesystem": "exFAT",
+      "archivePath": "fixtures/exfat-quick-format-contiguous-jpeg.img.gz",
+      "archiveSHA256": "041ceada15e759dbda4f84592d91de7bc4f092343929a09421a8da098123db93",
+      "expectedOriginalIDs": [
+        "synthetic-jpeg"
+      ],
+      "notes": "The JPEG was copied to a fresh exFAT volume before a second exFAT quick format."
+    }
+  ]
+}

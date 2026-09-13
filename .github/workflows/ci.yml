@@ -25,6 +25,11 @@ jobs:
       - name: Build pinned recovery engines
         run: Scripts/build-recovery-engines.sh "$RUNNER_TEMP/RecoveryEngines"
 
+      - name: Run recovery-quality release gate
+        env:
+          PHOTOREC_EXECUTABLE: ${{ runner.temp }}/RecoveryEngines/Helpers/photorec
+        run: Scripts/run-recovery-benchmark.sh
+
       - name: Build release configuration
         run: >-
           xcodebuild
