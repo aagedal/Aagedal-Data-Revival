@@ -1,8 +1,23 @@
 {
-  "schemaVersion": 2,
-  "suiteVersion": "1.1.0",
+  "schemaVersion": 3,
+  "suiteVersion": "2.0.0",
   "acceptance": {
     "minimumExactRecoveryRate": 1.0
+  },
+  "scanProfiles": {
+    "jpeg": [
+      "jpg"
+    ],
+    "photos": [
+      "jpg",
+      "tif",
+      "crw",
+      "orf",
+      "raf",
+      "raw",
+      "rw2",
+      "x3f"
+    ]
   },
   "originals": [
     {
@@ -12,6 +27,70 @@
       "sha256": "ece6530f7391025fe807d9a375bb1d9e28f296b5d8f2e58fe7e4c847aa803120",
       "format": "JPEG",
       "provenance": "Programmatically generated 128x96 RGBA gradient; no private or third-party media."
+    },
+    {
+      "id": "canon-cr2",
+      "path": "originals/camera-raw/canon-eos-40d.CR2",
+      "filename": "canon-eos-40d.CR2",
+      "sha256": "ba644e7dd2abe74eca260e67f0206ff113bf0f62e710f8130611e964d6be5bf1",
+      "format": "Canon CR2",
+      "provenance": "CC0 sample from raw.pixls.us, file 2102; Canon EOS 40D sRAW2."
+    },
+    {
+      "id": "nikon-nef",
+      "path": "originals/camera-raw/nikon-d2h.NEF",
+      "filename": "nikon-d2h.NEF",
+      "sha256": "155edb938f884ea7372ce98d4ff5f965c3e413b43b95bc9923da6e92082cf914",
+      "format": "Nikon NEF",
+      "provenance": "CC0 sample from raw.pixls.us, file 5227; Nikon D2H 12-bit compressed RAW."
+    },
+    {
+      "id": "sony-arw",
+      "path": "originals/camera-raw/sony-ilce-7s.ARW",
+      "filename": "sony-ilce-7s.ARW",
+      "sha256": "a35ebb2fbec929daa5beb20d1ce5c15a8aac7b1a7a231455387f3df8a7442e07",
+      "format": "Sony ARW",
+      "provenance": "CC0 sample from raw.pixls.us, file 1582; Sony ILCE-7S 14-bit compressed RAW."
+    },
+    {
+      "id": "fujifilm-raf",
+      "path": "originals/camera-raw/fujifilm-finepix-s5000.RAF",
+      "filename": "fujifilm-finepix-s5000.RAF",
+      "sha256": "dabd5e74521a6980156be9fd4b88d0c37b0fe4d0e0e6f5c12db8cffff1b76297",
+      "format": "Fujifilm RAF",
+      "provenance": "CC0 sample from raw.pixls.us, file 2726; Fujifilm FinePix S5000 RAW."
+    },
+    {
+      "id": "olympus-orf",
+      "path": "originals/camera-raw/olympus-e-3.ORF",
+      "filename": "olympus-e-3.ORF",
+      "sha256": "ba4605bbd9fe9b77971da444bcdb1698904c0ad4ebdf9dd42dd45ab255f3f6d4",
+      "format": "Olympus ORF",
+      "provenance": "CC0 sample from raw.pixls.us, file 1803; Olympus E-3 RAW."
+    },
+    {
+      "id": "panasonic-rw2",
+      "path": "originals/camera-raw/panasonic-dmc-fz28.RW2",
+      "filename": "panasonic-dmc-fz28.RW2",
+      "sha256": "b58564eb3cd148e6282aeba0b104506fa021ce905a3040f15b6ef1cbd6142fff",
+      "format": "Panasonic RW2",
+      "provenance": "CC0 sample from raw.pixls.us, file 7330; Panasonic DMC-FZ28 16:9 RAW."
+    },
+    {
+      "id": "pentax-pef",
+      "path": "originals/camera-raw/pentax-k10d.PEF",
+      "filename": "pentax-k10d.PEF",
+      "sha256": "e35ae4154a468be3154f5f462e884ba5941f010d3e8f23d347fbec14809f44d3",
+      "format": "Pentax PEF",
+      "provenance": "CC0 sample from raw.pixls.us, file 2239; Pentax K10D 12-bit compressed RAW."
+    },
+    {
+      "id": "sigma-x3f",
+      "path": "originals/camera-raw/sigma-dp1.X3F",
+      "filename": "sigma-dp1.X3F",
+      "sha256": "44508f7df4191aacaecb6461e1841dae002e5b71a4f95a00aa3f52d1c6d6bc5f",
+      "format": "Sigma X3F",
+      "provenance": "CC0 sample from raw.pixls.us, file 1116; Sigma DP1 RAW."
     }
   ],
   "fixtures": [
@@ -114,6 +193,182 @@
         }
       ],
       "notes": "A 512-byte range in the compressed image data is overwritten by zeros; the JPEG header and end marker remain present."
+    },
+    {
+      "id": "raw-contiguous-canon-cr2",
+      "filesystem": "none (raw image)",
+      "scanProfile": "photos",
+      "constructedImage": {
+        "originalID": "canon-cr2",
+        "offset": 1048576,
+        "trailingZeroBytes": 33554432
+      },
+      "classification": "byte-exact recovery",
+      "expectedRecoveries": [
+        {
+          "label": "intact Canon CR2",
+          "sha256": "ba644e7dd2abe74eca260e67f0206ff113bf0f62e710f8130611e964d6be5bf1"
+        }
+      ],
+      "requiredRecoveredExtensions": [
+        "cr2"
+      ],
+      "notes": "A real CC0 Canon CR2 begins at a 1 MiB boundary in an otherwise zero-filled raw image."
+    },
+    {
+      "id": "raw-contiguous-nikon-nef",
+      "filesystem": "none (raw image)",
+      "scanProfile": "photos",
+      "constructedImage": {
+        "originalID": "nikon-nef",
+        "offset": 1048576,
+        "trailingZeroBytes": 33554432
+      },
+      "classification": "byte-exact recovery",
+      "expectedRecoveries": [
+        {
+          "label": "intact Nikon NEF",
+          "sha256": "155edb938f884ea7372ce98d4ff5f965c3e413b43b95bc9923da6e92082cf914"
+        }
+      ],
+      "requiredRecoveredExtensions": [
+        "nef"
+      ],
+      "notes": "A real CC0 Nikon NEF begins at a 1 MiB boundary in an otherwise zero-filled raw image."
+    },
+    {
+      "id": "raw-contiguous-sony-arw",
+      "filesystem": "none (raw image)",
+      "scanProfile": "photos",
+      "constructedImage": {
+        "originalID": "sony-arw",
+        "offset": 1048576,
+        "trailingZeroBytes": 33554432
+      },
+      "classification": "known limitation: candidate includes trailing source bytes",
+      "expectedRecoveries": [],
+      "forbiddenRecoveries": [
+        {
+          "label": "intact Sony ARW",
+          "sha256": "a35ebb2fbec929daa5beb20d1ce5c15a8aac7b1a7a231455387f3df8a7442e07"
+        }
+      ],
+      "minimumDistinctRecoveredPayloads": 1,
+      "requiredRecoveredExtensions": [
+        "sr2"
+      ],
+      "notes": "PhotoRec 7.2 identifies this ARW through its shared Sony SR2 family but does not determine the original end boundary."
+    },
+    {
+      "id": "raw-contiguous-fujifilm-raf",
+      "filesystem": "none (raw image)",
+      "scanProfile": "photos",
+      "constructedImage": {
+        "originalID": "fujifilm-raf",
+        "offset": 1048576,
+        "trailingZeroBytes": 33554432
+      },
+      "classification": "known limitation: candidate includes trailing source bytes",
+      "expectedRecoveries": [],
+      "forbiddenRecoveries": [
+        {
+          "label": "intact Fujifilm RAF",
+          "sha256": "dabd5e74521a6980156be9fd4b88d0c37b0fe4d0e0e6f5c12db8cffff1b76297"
+        }
+      ],
+      "minimumDistinctRecoveredPayloads": 1,
+      "requiredRecoveredExtensions": [
+        "raf"
+      ],
+      "notes": "PhotoRec 7.2 finds the RAF header but its minimum-size validator retains trailing bytes from the raw image."
+    },
+    {
+      "id": "raw-contiguous-olympus-orf",
+      "filesystem": "none (raw image)",
+      "scanProfile": "photos",
+      "constructedImage": {
+        "originalID": "olympus-orf",
+        "offset": 1048576,
+        "trailingZeroBytes": 33554432
+      },
+      "classification": "byte-exact recovery",
+      "expectedRecoveries": [
+        {
+          "label": "intact Olympus ORF",
+          "sha256": "ba4605bbd9fe9b77971da444bcdb1698904c0ad4ebdf9dd42dd45ab255f3f6d4"
+        }
+      ],
+      "requiredRecoveredExtensions": [
+        "orf"
+      ],
+      "notes": "A real CC0 Olympus ORF begins at a 1 MiB boundary in an otherwise zero-filled raw image."
+    },
+    {
+      "id": "raw-contiguous-panasonic-rw2",
+      "filesystem": "none (raw image)",
+      "scanProfile": "photos",
+      "constructedImage": {
+        "originalID": "panasonic-rw2",
+        "offset": 1048576,
+        "trailingZeroBytes": 33554432
+      },
+      "classification": "known limitation: candidate includes trailing source bytes",
+      "expectedRecoveries": [],
+      "forbiddenRecoveries": [
+        {
+          "label": "intact Panasonic RW2",
+          "sha256": "b58564eb3cd148e6282aeba0b104506fa021ce905a3040f15b6ef1cbd6142fff"
+        }
+      ],
+      "minimumDistinctRecoveredPayloads": 1,
+      "requiredRecoveredExtensions": [
+        "rw2"
+      ],
+      "notes": "PhotoRec 7.2 finds the RW2 header but does not determine the original end boundary."
+    },
+    {
+      "id": "raw-contiguous-pentax-pef",
+      "filesystem": "none (raw image)",
+      "scanProfile": "photos",
+      "constructedImage": {
+        "originalID": "pentax-pef",
+        "offset": 1048576,
+        "trailingZeroBytes": 33554432
+      },
+      "classification": "byte-exact recovery",
+      "expectedRecoveries": [
+        {
+          "label": "intact Pentax PEF",
+          "sha256": "e35ae4154a468be3154f5f462e884ba5941f010d3e8f23d347fbec14809f44d3"
+        }
+      ],
+      "requiredRecoveredExtensions": [
+        "pef"
+      ],
+      "notes": "A real CC0 Pentax PEF begins at a 1 MiB boundary in an otherwise zero-filled raw image."
+    },
+    {
+      "id": "raw-contiguous-sigma-x3f",
+      "filesystem": "none (raw image)",
+      "scanProfile": "photos",
+      "constructedImage": {
+        "originalID": "sigma-x3f",
+        "offset": 1048576,
+        "trailingZeroBytes": 33554432
+      },
+      "classification": "known limitation: candidate includes trailing source bytes",
+      "expectedRecoveries": [],
+      "forbiddenRecoveries": [
+        {
+          "label": "intact Sigma X3F",
+          "sha256": "44508f7df4191aacaecb6461e1841dae002e5b71a4f95a00aa3f52d1c6d6bc5f"
+        }
+      ],
+      "minimumDistinctRecoveredPayloads": 1,
+      "requiredRecoveredExtensions": [
+        "x3f"
+      ],
+      "notes": "PhotoRec 7.2 finds the X3F header but does not determine the original end boundary."
     }
   ]
 }

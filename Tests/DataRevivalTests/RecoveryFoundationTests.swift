@@ -921,6 +921,22 @@ struct RecoveryFoundationTests {
         ].joined(separator: ","))
     }
 
+    @Test("Photo scan profile stays aligned with the recovery benchmark")
+    func photoScanProfileMatchesBenchmark() throws {
+        let repositoryRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let manifestURL = repositoryRoot
+            .appendingPathComponent("Benchmarks/RecoveryQuality/v1/manifest.json")
+        let object = try JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL))
+        let manifest = try #require(object as? [String: Any])
+        let scanProfiles = try #require(manifest["scanProfiles"] as? [String: [String]])
+
+        #expect(scanProfiles["jpeg"] == RecoveryScanProfile.jpeg.photoRecFileFamilies)
+        #expect(scanProfiles["photos"] == RecoveryScanProfile.photos.photoRecFileFamilies)
+    }
+
     @Test("Older session manifests default to the JPEG scan profile")
     func legacySessionScanProfile() throws {
         let session = RecoverySession(

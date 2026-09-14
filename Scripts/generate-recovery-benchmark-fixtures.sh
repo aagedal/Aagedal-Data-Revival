@@ -29,7 +29,7 @@ original="$temporary_root/synthetic-gradient.jpg"
 /usr/bin/base64 -D -i "$suite/originals/synthetic-gradient.jpg.base64" -o "$original"
 actual_original_hash="$(/usr/bin/shasum -a 256 "$original" | /usr/bin/awk '{print $1}')"
 expected_original_hash="$(/usr/bin/python3 -c \
-    'import json,sys; print(json.load(open(sys.argv[1]))["originals"][0]["sha256"])' \
+    'import json,sys; print(next(x["sha256"] for x in json.load(open(sys.argv[1]))["originals"] if x["id"] == "synthetic-jpeg"))' \
     "$manifest")"
 if [[ "$actual_original_hash" != "$expected_original_hash" ]]; then
     echo "error: encoded benchmark original does not match its manifest hash" >&2
@@ -167,6 +167,8 @@ path = pathlib.Path(sys.argv[1])
 fixture_directory = pathlib.Path(sys.argv[2])
 manifest = json.loads(path.read_text())
 for fixture in manifest["fixtures"]:
+    if "archivePath" not in fixture:
+        continue
     archive = fixture_directory / pathlib.Path(fixture["archivePath"]).name
     fixture["archiveSHA256"] = hashlib.sha256(archive.read_bytes()).hexdigest()
 path.write_text(json.dumps(manifest, indent=2) + "\n")

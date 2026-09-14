@@ -2,7 +2,7 @@
 
 An open-source, native macOS app for recovering files from accidentally formatted camera cards.
 
-Status: version 1.0 release candidate with experimental PhotoRec-backed JPEG and common camera RAW scans for raw disk images. Physical-card imaging uses temporary, path-specific read-only authorization from macOS, with source revalidation, resumable ddrescue progress, cancellation, and safe remount/eject controls. It installs no privileged helper or background service. Production recovery engines and their corresponding sources are packaged for Release builds. Clean-machine and real-card acceptance testing is still required before release. Video recovery and claims of full camera RAW integrity are explicitly outside the 1.0 scope.
+Status: version 1.0 release candidate with PhotoRec-backed JPEG recovery and experimental camera RAW scans for raw disk images. The representative benchmark recovers its CR2, NEF, ORF, and PEF originals byte-for-byte; its tested ARW, RAF, RW2, and X3F candidates retain trailing source bytes. Physical-card imaging uses temporary, path-specific read-only authorization from macOS, with source revalidation, resumable ddrescue progress, cancellation, and safe remount/eject controls. It installs no privileged helper or background service. Production recovery engines and their corresponding sources are packaged for Release builds. Clean-machine and real-card acceptance testing is still required before release. Video recovery and claims of full camera RAW integrity are explicitly outside the 1.0 scope.
 
 ## Build and run
 
@@ -31,11 +31,11 @@ does not contain an automatic updater in 1.0. Before publishing, follow the
 [changelog](CHANGELOG.md), [support policy](SUPPORT.md), and
 [privacy statement](PRIVACY.md) for user-facing release information.
 
-The versioned recovery-quality benchmark uses non-sensitive synthetic JPEG fixtures from genuinely quick-formatted FAT32 and exFAT images, plus deterministic fragmented, truncated, corrupt-metadata, and overwritten cases. Its release gate distinguishes intact byte-exact recovery from byte-exact carving of already damaged data; a filename or decodable preview is never counted as successful recovery. See [Recovery-quality benchmark](Documentation/RecoveryQualityBenchmark.md) for the measured support matrix, fixture-generation procedure, known limitations, and remaining camera-RAW scenarios.
+The versioned recovery-quality benchmark uses non-sensitive synthetic JPEG fixtures from genuinely quick-formatted FAT32 and exFAT images, deterministic fragmented, truncated, corrupt-metadata, and overwritten cases, and CC0 camera RAW originals representing Canon, Nikon, Sony, Fujifilm, Olympus, Panasonic, Pentax, and Sigma. Its release gate distinguishes intact byte-exact recovery from byte-exact carving of already damaged data and from non-exact candidates with trailing source bytes; a filename or decodable preview is never counted as exact recovery. See [Recovery-quality benchmark](Documentation/RecoveryQualityBenchmark.md) for the measured support matrix, fixture-generation procedure, and known limitations.
 
 Release builds require those generated products and embed the two engines under `Contents/Helpers`; they fail closed when the products are absent. Exact upstream licenses, author notices, the reviewed build lock, checksums, and the corresponding source archives are embedded under `Contents/Resources/RecoveryEngines`, so every binary release carries its own engine sources. Signed builds sign the engines before Xcode signs the outer app. Debug builds can still use the explicitly documented package-manager fallback when local engine products have not been built.
 
-This is an integration spike, not a production recovery release. It currently performs a whole-image JPEG carve with basic decode and end-marker validation. Use disposable test images and copies of owned media.
+This release candidate performs whole-image JPEG and camera RAW carving with conservative validation labels. Use disposable test images and copies of owned media until the signed candidate completes the clean-machine and physical-card acceptance matrix.
 
 ## First release
 

@@ -40,43 +40,81 @@ photorec = pathlib.Path(sys.argv[3])
 work = pathlib.Path(sys.argv[4])
 manifest = json.loads(manifest_path.read_text())
 
-if manifest.get("schemaVersion") != 2:
+if manifest.get("schemaVersion") != 3:
     raise SystemExit("error: unsupported recovery benchmark manifest schema")
 
+def load_original(original):
+    if "encodedPath" in original:
+        encoded = (suite / original["encodedPath"]).read_bytes()
+        return base64.b64decode(encoded, validate=False)
+    if "path" in original:
+        return (suite / original["path"]).read_bytes()
+    raise SystemExit(f"error: original {original['id']} has no payload path")
+
+
 originals = {item["id"]: item for item in manifest["originals"]}
+original_payloads = {}
 for original in originals.values():
-    encoded = (suite / original["encodedPath"]).read_bytes()
-    payload = base64.b64decode(encoded, validate=False)
+    payload = load_original(original)
     if hashlib.sha256(payload).hexdigest() != original["sha256"]:
-        raise SystemExit(
-            f"error: encoded original checksum mismatch: {original['encodedPath']}"
-        )
+        source_path = original.get("encodedPath", original.get("path"))
+        raise SystemExit(f"error: original checksum mismatch: {source_path}")
+    original_payloads[original["id"]] = payload
 expected_total = 0
 exact_total = 0
 fixture_results = []
 
 for fixture in manifest["fixtures"]:
-    archive = suite / fixture["archivePath"]
-    archive_hash = hashlib.sha256(archive.read_bytes()).hexdigest()
-    if archive_hash != fixture["archiveSHA256"]:
-        raise SystemExit(f"error: fixture archive checksum mismatch: {archive}")
-
     fixture_work = work / fixture["id"]
     fixture_work.mkdir()
     image = fixture_work / "source image with spaces.img"
-    with gzip.open(archive, "rb") as source, image.open("wb") as destination:
-        while chunk := source.read(1024 * 1024):
-            destination.write(chunk)
+    if "archivePath" in fixture:
+        archive = suite / fixture["archivePath"]
+        archive_hash = hashlib.sha256(archive.read_bytes()).hexdigest()
+        if archive_hash != fixture["archiveSHA256"]:
+            raise SystemExit(f"error: fixture archive checksum mismatch: {archive}")
+        with gzip.open(archive, "rb") as source, image.open("wb") as destination:
+            while chunk := source.read(1024 * 1024):
+                destination.write(chunk)
+    elif "constructedImage" in fixture:
+        construction = fixture["constructedImage"]
+        original_id = construction["originalID"]
+        if original_id not in original_payloads:
+            raise SystemExit(
+                f"error: fixture {fixture['id']} references unknown original {original_id}"
+            )
+        payload = original_payloads[original_id]
+        offset = construction["offset"]
+        trailing_zero_bytes = construction["trailingZeroBytes"]
+        if offset < 0 or trailing_zero_bytes < 0:
+            raise SystemExit(f"error: fixture {fixture['id']} has an invalid image layout")
+        with image.open("wb") as destination:
+            destination.truncate(offset + len(payload) + trailing_zero_bytes)
+            destination.seek(offset)
+            destination.write(payload)
+    else:
+        raise SystemExit(f"error: fixture {fixture['id']} has no source image")
 
     output = fixture_work / "recovered output"
     output.mkdir()
     log = fixture_work / "photorec.log"
+    profile_name = fixture.get("scanProfile", "jpeg")
+    try:
+        file_families = manifest["scanProfiles"][profile_name]
+    except KeyError:
+        raise SystemExit(
+            f"error: fixture {fixture['id']} references unknown scan profile {profile_name}"
+        )
+    file_options = ["fileopt", "everything", "disable"]
+    for family in file_families:
+        file_options.extend((family, "enable"))
+    file_options.extend(("wholespace", "search"))
     command = [
         str(photorec),
         "/logname", str(log),
         "/d", str(output / "recovered"),
         "/cmd", str(image),
-        "fileopt,everything,disable,jpg,enable,wholespace,search",
+        ",".join(file_options),
     ]
     completed = subprocess.run(command, cwd=fixture_work, stdout=subprocess.PIPE,
                                stderr=subprocess.STDOUT, text=True)
@@ -87,10 +125,12 @@ for fixture in manifest["fixtures"]:
         )
 
     recovered_hashes = {}
+    recovered_extensions = set()
     for candidate in output.rglob("*"):
         if candidate.is_file() and candidate.name != "report.xml":
             payload = candidate.read_bytes()
             digest = hashlib.sha256(payload).hexdigest()
+            recovered_extensions.add(candidate.suffix.lower().lstrip("."))
             recovered_hashes.setdefault(digest, []).append(
                 (str(candidate.relative_to(output)), len(payload))
             )
@@ -116,6 +156,14 @@ for fixture in manifest["fixtures"]:
             f"error: {fixture['id']} recovered {len(recovered_hashes)} distinct payloads; "
             f"expected at least {minimum_recovered}"
         )
+    missing_extensions = sorted(
+        set(fixture.get("requiredRecoveredExtensions", [])) - recovered_extensions
+    )
+    if missing_extensions:
+        raise SystemExit(
+            f"error: {fixture['id']} did not recover required extension(s): "
+            f"{', '.join(missing_extensions)}"
+        )
     expected_total += len(expected)
     exact_total += exact
     fixture_results.append((
@@ -134,7 +182,7 @@ minimum = manifest["acceptance"]["minimumExactRecoveryRate"]
 for identifier, exact, expected, recovered_count, classification in fixture_results:
     print(f"{identifier}: {exact}/{expected} expected byte-exact artifacts; "
           f"{recovered_count} distinct recovered payloads; {classification}")
-print(f"Exact recovery rate: {rate:.1%} (required: {minimum:.1%})")
+print(f"Declared exact-recovery assertions: {rate:.1%} (required: {minimum:.1%})")
 if rate < minimum:
     raise SystemExit("error: recovery benchmark acceptance threshold was not met")
 print(f"Recovery benchmark {manifest['suiteVersion']} passed")

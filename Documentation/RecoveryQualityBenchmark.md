@@ -2,15 +2,15 @@
 
 The versioned benchmark under `Benchmarks/RecoveryQuality/v1` is a
 non-sensitive release-gate corpus. It measures contiguous JPEG recovery after
-a genuine quick format of both FAT32 and exFAT volumes, plus deterministic raw
+a genuine quick format of both FAT32 and exFAT volumes, deterministic raw
 images containing fragmented, truncated, corrupt-metadata, and overwritten
-JPEG data. Every expected recovery is compared with a declared SHA-256 digest;
-a file that merely decodes or has the expected extension does not count as
-exact.
+JPEG data, and representative real-camera RAW files from eight manufacturers.
+Every promised exact recovery is compared with a declared SHA-256 digest; a
+file that merely decodes or has the expected extension does not count as exact.
 
-The checked-in original is a programmatically generated color gradient, stored
-as Base64 so the repository contains an auditable text representation. The
-fixture archives are generated on macOS by copying that original to fresh
+The checked-in JPEG original is a programmatically generated color gradient,
+stored as Base64 so the repository contains an auditable text representation.
+The fixture archives are generated on macOS by copying that original to fresh
 filesystem images and quick-formatting those images a second time. Virtual disk
 images advertise discard support, which lets the formatter deallocate old data
 blocks unlike an ordinary camera-card quick format. The generator therefore
@@ -19,7 +19,14 @@ offset after capturing the newly formatted filesystem. It does not restore any
 name, directory, or allocation metadata. The generator records each archive
 digest in the suite manifest.
 
-Generate or deliberately refresh every fixture archive with:
+The camera RAW originals are unmodified CC0 files from raw.pixls.us. Their
+published provenance and hashes are recorded in
+`Benchmarks/RecoveryQuality/v1/originals/camera-raw/SOURCES.md`. At runtime, the
+gate places each original at a 1 MiB boundary in an otherwise zero-filled image
+and runs the same PhotoRec file-family profile used by the app. This isolates
+each signature and makes any retained trailing bytes deterministic.
+
+Generate or deliberately refresh every JPEG fixture archive with:
 
 ```sh
 Scripts/generate-recovery-benchmark-fixtures.sh
@@ -67,14 +74,30 @@ behave identically.
 that remain in the image. It does not mean that Data Revival repaired the file
 or recovered the intact original.
 
-## Formats not yet qualified
+## Measured camera RAW matrix
 
-Representative, redistributable camera RAW originals are still needed for
-Canon, Nikon, Sony, Fujifilm, Olympus, Panasonic, Pentax, and Sigma. Until those
-fixtures pass, the benchmark makes no byte-exact recovery claim for those
-families. The automated foundation suite verifies that cancelling the imaging
-process preserves its partial image and resume sidecars, that a resume is bound
-to the original source, and that removal, read-error, and destination-exhaustion
+These are representative format samples, not model-wide compatibility claims.
+“Trailing bytes retained” means the pinned carver found the correct RAW header
+but did not determine the original end boundary. The resulting candidate is not
+byte-exact and must remain honestly labeled as preview-readable, unchecked, or
+possibly partial by the app.
+
+| Family and sample | Gate result | 1.0 qualification |
+| --- | --- | --- |
+| Canon CR2, EOS 40D | Intact file recovered byte-for-byte | Qualified representative |
+| Nikon NEF, D2H | Intact file recovered byte-for-byte | Qualified representative |
+| Sony ARW, ILCE-7S | Candidate recovered as the shared SR2 family with trailing bytes retained | Known limitation; no byte-exact claim |
+| Fujifilm RAF, FinePix S5000 | Candidate recovered with trailing bytes retained | Known limitation; no byte-exact claim |
+| Olympus ORF, E-3 | Intact file recovered byte-for-byte | Qualified representative |
+| Panasonic RW2, DMC-FZ28 | Candidate recovered with trailing bytes retained | Known limitation; no byte-exact claim |
+| Pentax PEF, K10D | Intact file recovered byte-for-byte | Qualified representative |
+| Sigma X3F, DP1 | Candidate recovered with trailing bytes retained | Known limitation; no byte-exact claim |
+
+## Remaining physical-media qualification
+
+The automated foundation suite verifies that cancelling the imaging process
+preserves its partial image and resume sidecars, that a resume is bound to the
+original source, and that removal, read-error, and destination-exhaustion
 failures produce the intended recovery guidance. Those scenarios still need to
 be exercised end-to-end with disposable physical cards before the complete P0
 quality gate can be marked finished. Paths containing spaces are exercised by

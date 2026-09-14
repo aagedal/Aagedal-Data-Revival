@@ -20,7 +20,8 @@ All notable changes to Aagedal Data Revival are recorded here. The project uses
   notices, corresponding source, and a signed-bundle audit.
 - GPLv3-or-later application licensing with an in-app notice and bundled full
   license text.
-- A versioned JPEG recovery-quality benchmark and deterministic UI workflow.
+- A versioned JPEG and representative camera RAW recovery-quality benchmark,
+  with byte-exact gates and explicit per-format carving limitations.
 - VoiceOver descriptions for recovery and imaging state, plus keyboard shortcuts
   for the primary open, cancel, export, and rescan actions.
 - A clean-checkout release-candidate command that creates the Developer ID
@@ -33,8 +34,9 @@ All notable changes to Aagedal Data Revival are recorded here. The project uses
 
 - Version 1.0 supports Apple silicon Macs running macOS 14 or newer.
 - MOV/MP4 recovery and metadata-aware filesystem recovery are not included.
-- Camera RAW support is not yet qualified by representative redistributable
-  fixtures, and a readable preview does not prove full sensor-data integrity.
+- Representative CR2, NEF, ORF, and PEF fixtures recover byte-for-byte. The
+  tested ARW, RAF, RW2, and X3F candidates retain trailing source bytes, and a
+  readable preview does not prove full sensor-data integrity.
 - Fragmented, truncated, and overwritten files may be partial or unrecoverable.
 
 ## Release history
