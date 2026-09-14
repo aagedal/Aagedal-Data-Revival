@@ -1,8 +1,9 @@
 # Version 1.0 accessibility review
 
-The 1.0 candidate must be checked with the macOS accessibility settings below on
-every supported macOS major version. Record the app version, build number,
-hardware, macOS version, tester, date, and any exception with the release record.
+The published 1.0.0 build must be checked with the macOS accessibility settings
+below on every supported macOS major version. Record the app version, build
+number, hardware, macOS version, tester, date, and any exception with the
+release record.
 
 ## Implemented baseline
 

@@ -5,6 +5,10 @@ All notable changes to Aagedal Data Revival are recorded here. The project uses
 
 ## Unreleased
 
+No changes yet.
+
+## [1.0.0] - 2026-09-15
+
 ### Added
 
 - Native macOS workflow for imaging owned SD, microSD, and CFexpress cards and
@@ -39,6 +43,10 @@ All notable changes to Aagedal Data Revival are recorded here. The project uses
   readable preview does not prove full sensor-data integrity.
 - Fragmented, truncated, and overwritten files may be partial or unrecoverable.
 
-## Release history
+### Known release issue
 
-No public release has been published yet.
+- The originally published 1.0.0 ZIP matches its recorded SHA-256 digest, but
+  macOS rejects the extracted app's code signature. Do not run that binary; the
+  tagged source remains available while a corrected release is pending.
+
+[1.0.0]: https://github.com/aagedal/Aagedal-Data-Revival/releases/tag/1.0.0

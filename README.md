@@ -2,7 +2,13 @@
 
 An open-source, native macOS app for recovering files from accidentally formatted camera cards.
 
-Status: version 1.0 release candidate with PhotoRec-backed JPEG recovery and experimental camera RAW scans for raw disk images. The representative benchmark recovers its CR2, NEF, ORF, and PEF originals byte-for-byte; its tested ARW, RAF, RW2, and X3F candidates retain trailing source bytes. Physical-card imaging uses temporary, path-specific read-only authorization from macOS, with source revalidation, resumable ddrescue progress, cancellation, and safe remount/eject controls. It installs no privileged helper or background service. Production recovery engines and their corresponding sources are packaged for Release builds. Clean-machine and real-card acceptance testing is still required before release. Video recovery and claims of full camera RAW integrity are explicitly outside the 1.0 scope.
+Current release: [version 1.0.0](https://github.com/aagedal/Aagedal-Data-Revival/releases/tag/1.0.0), the first public release. It provides PhotoRec-backed JPEG and camera RAW scans for raw disk images. The representative benchmark recovers its CR2, NEF, ORF, and PEF originals byte-for-byte; its tested ARW, RAF, RW2, and X3F candidates retain trailing source bytes. Physical-card imaging uses temporary, path-specific read-only authorization from macOS, with source revalidation, resumable ddrescue progress, cancellation, and safe remount/eject controls. It installs no privileged helper or background service. Production recovery engines and their corresponding sources are packaged in Release builds. Video recovery and claims of full camera RAW integrity are explicitly outside the 1.0 scope.
+
+> [!WARNING]
+> Do not run the currently published 1.0.0 binary. Post-publication verification
+> found that macOS rejects its code signature. The tagged source remains
+> available; wait for a corrected release before using a binary. See the
+> [1.0.0 release notes](Documentation/Releases/1.0.0.md) for verification details.
 
 ## Build and run
 
@@ -10,7 +16,7 @@ Requires an Apple silicon Mac running macOS 14 or newer and Xcode with Swift 6 s
 
 The macOS UI suite drives a deterministic Debug-only recovery fixture through scan, filtering, preview inspection, export, and persisted-session reopening. Run it with `xcodebuild test -project 'Aagedal Data Revival.xcodeproj' -scheme 'Aagedal Data Revival' -configuration Debug -destination 'platform=macOS'` from a logged-in macOS user session.
 
-The app includes source selection, a raw-image file picker, selectable JPEG-only or JPEG-plus-camera-RAW scan profiles, persistent and reopenable session manifests, cancellation with partial-result retention, live elapsed/file-count/output-size scan activity, real result discovery, searchable and type-filtered results, basic JPEG decode validation, honest RAW/TIFF preview-decode checks, Quick Look previews, collision-safe export, searchable sample results, and live read-only discovery of removable and external whole disks through Disk Arbitration. Common TIFF-based RAW variants and additional proprietary RAW families are included in the broader photo profile. RAW/TIFF files that macOS can preview are labeled “Preview readable,” while unsupported formats remain “Not checked”; neither status claims the sensor data is intact. The disk-tools screen can verify that a proposed card-image destination is on another physical device, has enough free space, and does not collide with image sidecars. It can also validate an interrupted image for safe resume using a structurally valid whole-source ddrescue mapfile and a Data Revival record bound to the original card identity, then report rescued, pending, and bad-sector byte counts. For physical cards, the app requests temporary read-only access to the exact raw-device path through macOS `authopen`, unmounts and revalidates the whole card, verifies the returned descriptor is read-only and still belongs to the selected device, then passes that descriptor to bundled ddrescue running as the logged-in user. The UI shows mapfile progress, preserves partial output on cancellation or failure, stops safely for system sleep, and distinguishes source removal, destination exhaustion, read errors, authorization denial, and imaging-engine failure with resume guidance. It also offers remount or eject after success. This path still needs clean-machine and representative real-card acceptance testing. Scans interrupted by an app restart are reconciled on the next launch. Session manifests record the source image identity and PhotoRec version, executable digest, architecture, origin, and exact arguments. The three sample files remain illustrative metadata, not actual recovered files.
+The app includes source selection, a raw-image file picker, selectable JPEG-only or JPEG-plus-camera-RAW scan profiles, persistent and reopenable session manifests, cancellation with partial-result retention, live elapsed/file-count/output-size scan activity, real result discovery, searchable and type-filtered results, basic JPEG decode validation, honest RAW/TIFF preview-decode checks, Quick Look previews, collision-safe export, searchable sample results, and live read-only discovery of removable and external whole disks through Disk Arbitration. Common TIFF-based RAW variants and additional proprietary RAW families are included in the broader photo profile. RAW/TIFF files that macOS can preview are labeled “Preview readable,” while unsupported formats remain “Not checked”; neither status claims the sensor data is intact. The disk-tools screen can verify that a proposed card-image destination is on another physical device, has enough free space, and does not collide with image sidecars. It can also validate an interrupted image for safe resume using a structurally valid whole-source ddrescue mapfile and a Data Revival record bound to the original card identity, then report rescued, pending, and bad-sector byte counts. For physical cards, the app requests temporary read-only access to the exact raw-device path through macOS `authopen`, unmounts and revalidates the whole card, verifies the returned descriptor is read-only and still belongs to the selected device, then passes that descriptor to bundled ddrescue running as the logged-in user. The UI shows mapfile progress, preserves partial output on cancellation or failure, stops safely for system sleep, and distinguishes source removal, destination exhaustion, read errors, authorization denial, and imaging-engine failure with resume guidance. It also offers remount or eject after success. Scans interrupted by an app restart are reconciled on the next launch. Session manifests record the source image identity and PhotoRec version, executable digest, architecture, origin, and exact arguments. The three sample files remain illustrative metadata, not actual recovered files.
 
 For debug-development scans, install the Homebrew `testdisk` formula, which supplies the `photorec` executable:
 
@@ -24,20 +30,22 @@ Package-manager engines are a debug-only convenience. Release builds resolve `ph
 
 Production source inputs are pinned to PhotoRec 7.2 and GNU ddrescue 1.30. On an Apple silicon development Mac, `Scripts/build-recovery-engines.sh` verifies the upstream source hashes and produces audited arm64-only binaries plus their license and corresponding-source artifacts. See [Recovery engine versions](Documentation/RecoveryEngineVersions.md) for the selection and build details.
 
-Release candidates will be distributed as signed, notarized direct downloads through
+Versioned builds are distributed as direct downloads through
 [GitHub Releases](https://github.com/aagedal/Aagedal-Data-Revival/releases); the app
-does not contain an automatic updater in 1.0. Before publishing, follow the
-[release checklist](Documentation/ReleaseChecklist.md). See the
+does not contain an automatic updater in 1.0. See the
+[version 1.0.0 release notes](Documentation/Releases/1.0.0.md),
 [changelog](CHANGELOG.md), [support policy](SUPPORT.md), and
-[privacy statement](PRIVACY.md) for user-facing release information.
+[privacy statement](PRIVACY.md) for user-facing release information. Maintainers
+should follow the [release checklist](Documentation/ReleaseChecklist.md) for each
+release.
 
 The versioned recovery-quality benchmark uses non-sensitive synthetic JPEG fixtures from genuinely quick-formatted FAT32 and exFAT images, deterministic fragmented, truncated, corrupt-metadata, and overwritten cases, and CC0 camera RAW originals representing Canon, Nikon, Sony, Fujifilm, Olympus, Panasonic, Pentax, and Sigma. Its release gate distinguishes intact byte-exact recovery from byte-exact carving of already damaged data and from non-exact candidates with trailing source bytes; a filename or decodable preview is never counted as exact recovery. See [Recovery-quality benchmark](Documentation/RecoveryQualityBenchmark.md) for the measured support matrix, fixture-generation procedure, and known limitations.
 
 Release builds require those generated products and embed the two engines under `Contents/Helpers`; they fail closed when the products are absent. Exact upstream licenses, author notices, the reviewed build lock, checksums, and the corresponding source archives are embedded under `Contents/Resources/RecoveryEngines`, so every binary release carries its own engine sources. Signed builds sign the engines before Xcode signs the outer app. Debug builds can still use the explicitly documented package-manager fallback when local engine products have not been built.
 
-This release candidate performs whole-image JPEG and camera RAW carving with conservative validation labels. Use disposable test images and copies of owned media until the signed candidate completes the clean-machine and physical-card acceptance matrix.
+Version 1.0.0 performs whole-image JPEG and camera RAW carving with conservative validation labels. Recovery is best-effort: preserve the original card, write images and recovered data to another physical device, and prefer working from a card image.
 
-## First release
+## Version 1.0 scope
 
 Focus on SD, microSD, and CFexpress cards containing FAT32 or exFAT volumes. Version 1.0 supports JPEG and camera RAW recovery. MOV/MP4 recovery is deferred until camera-specific recovery and validation fixtures can support an honest compatibility claim. Start development with existing raw disk images; add physical-card imaging once the recovery pipeline is tested.
 

@@ -1,9 +1,9 @@
 # Privacy statement
 
-Last updated: 2026-09-13
+Last updated: 2026-09-15
 
 Aagedal Data Revival processes card images and recovered files locally on the
-Mac. Version 1.0 does not include analytics, advertising, telemetry, cloud
+Mac. Version 1.0.0 does not include analytics, advertising, telemetry, cloud
 storage, accounts, or an automatic updater, and the app does not transmit card
 contents or recovery results to the project maintainers.
 

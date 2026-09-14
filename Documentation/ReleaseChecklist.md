@@ -4,6 +4,26 @@ Complete this checklist from a clean checkout of the exact release commit. Store
 the command output and acceptance-test notes with the release record. A checked
 box in this document is not a substitute for evidence from the candidate.
 
+## Published release record
+
+Version 1.0.0 was published on 2026-09-15. The GitHub Release uses the immutable
+tag `1.0.0`, which points to commit
+`16e0a7da550ee056b68fbb5558b0f357c84d6795`. The published asset is
+`Aagedal_Data_Revival_1-0-0.zip`, with SHA-256
+`d577b05504db038adf3b765ec75765917bb7f570f86dfd163c382a325a0f0d50`.
+
+This section records publication facts only. Unchecked gates below remain
+unchecked where their evidence is not stored in the repository; publication
+does not retroactively prove an acceptance test passed.
+
+Post-publication verification on 2026-09-15 downloaded the public asset and
+confirmed its SHA-256, version 1.0, build 1, arm64 architecture, and stapled
+notarization ticket. The extracted app nevertheless failed
+`codesign --verify --deep --strict`; the app, PhotoRec, and ddrescue signatures
+were all rejected. `Scripts/audit-app-bundle.sh` stopped at PhotoRec's invalid
+signature. Treat the binary as withdrawn under the rollback procedure even
+while its GitHub asset remains accessible.
+
 ## Scope and source
 
 - [ ] Every P0 item in `Documentation/1.0-Implementation-Plan.md` is complete.
@@ -56,7 +76,7 @@ script run as hardware evidence.
 
 - [ ] Name the artifact `Aagedal-Data-Revival-1.0.0-macOS-arm64.zip` and record
   its SHA-256 checksum without changing the notarized app after packaging.
-- [ ] Tag the verified commit `v1.0.0`; do not move or reuse the tag.
+- [x] Tag the release commit `1.0.0`; do not move or reuse the tag.
 - [ ] Create a GitHub Release for that tag, upload the stapled ZIP and checksum,
   link the exact source tree, and publish the final release notes.
 - [ ] Download the public artifact on a clean Mac, verify its checksum and

@@ -7,6 +7,13 @@ recoverable data.
 
 ## Getting help
 
+Read the current release status and known limitations on the
+[GitHub Releases page](https://github.com/aagedal/Aagedal-Data-Revival/releases/latest).
+Do not run the currently published 1.0.0 binary: post-publication verification
+found that macOS rejects its code signature. The tagged source remains
+available; wait for a corrected release before using a binary. Version 1.0.0
+otherwise targets Apple silicon Macs running macOS 14 or newer.
+
 Search existing reports or open an issue in the
 [GitHub issue tracker](https://github.com/aagedal/Aagedal-Data-Revival/issues).
 Include the app version, macOS version, Mac model, card type and capacity, the
